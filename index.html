@@ -649,6 +649,7 @@ class MenuScene extends Phaser.Scene {
       this.btnGlows.forEach(g=>g.setFillStyle(0xff4040));
     });
     btn.on('pointerdown',()=>{ Audio.init(); Audio.resume(); Audio.startAmbient(); this.scene.start('Game'); });
+    this.input.keyboard.on('keydown-SPACE',()=>{ Audio.init(); Audio.resume(); Audio.startAmbient(); this.scene.start('Game'); });
 
     // ---- enemy preview thumbnails ----
     const enemies=['undead','spitter','brute','bomber','wraith','villager'];
@@ -672,6 +673,7 @@ class MenuScene extends Phaser.Scene {
 
     // ---- help text ----
     const help=[
+      '[ESPAÇO] Iniciar jogo',
       '[>] Clique esquerdo: atirar',
       '[R] Recarregar  ('+CLIP_SIZE+' balas / pente)',
       '[P] ESC / P: pausar',
