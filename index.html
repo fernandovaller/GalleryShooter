@@ -384,28 +384,184 @@ class BootScene extends Phaser.Scene {
 class MenuScene extends Phaser.Scene {
   constructor(){ super('Menu'); }
   create(){
-    this.add.image(BASE_W/2,BASE_H/2,'bg').setDisplaySize(BASE_W,BASE_H);
-    const t=this.add.text(BASE_W/2,180,'GALLERY SHOOTER',{fontFamily:'Courier New',fontSize:'72px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5);
-    t.setShadow(0,0,'#600000',4,true);
-    this.add.text(BASE_W/2,260,'Aponte. Atire. Acerte os inimigos.',{fontSize:'22px',color:'#ccd'}).setOrigin(0.5);
+    const W=BASE_W,H=BASE_H, groundY=H*0.72;
+    const rng=mulberry32(20240729);
 
-    const btn=this.add.rectangle(BASE_W/2,380,320,70,0x222a33).setStrokeStyle(3,0xff4040);
-    const btxt=this.add.text(BASE_W/2,380,'INICIAR JOGO',{fontSize:'30px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
+    // ---- animated background (sky gradient, stars, moon, rain) ----
+    this.bgGfx=this.add.graphics().setDepth(0);
+    // sky gradient (same 6-stop as GameScene)
+    const stops=[{t:0,col:0x070512},{t:0.25,col:0x0a0e1a},{t:0.50,col:0x121a2e},{t:0.65,col:0x1a2238},{t:0.70,col:0x2a2238},{t:0.72,col:0x3a2a30}];
+    for(let y=0;y<groundY+2;y++){
+      const t=y/(groundY+2); let s0=stops[0],s1=stops[1];
+      for(let si=0;si<stops.length-1;si++){ if(t>=stops[si].t&&t<=stops[si+1].t){ s0=stops[si]; s1=stops[si+1]; break; } }
+      const lt=(t-s0.t)/(s1.t-s0.t);
+      const c=Phaser.Display.Color.Interpolate.ColorWithColor(s0.col,s1.col,lt);
+      this.bgGfx.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); this.bgGfx.fillRect(0,y,W,1);
+    }
+    // ground gradient
+    for(let y=0;y<H-groundY;y++){
+      const t=y/(H-groundY);
+      const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x11161e,0x070a0e,t);
+      this.bgGfx.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); this.bgGfx.fillRect(0,groundY+y,W,1);
+    }
+    this.bgGfx.fillStyle(0x1a2230,1); this.bgGfx.fillRect(0,groundY,W,4);
+    // stars
+    this.menuStars=[];
+    for(let i=0;i<100;i++){
+      const sx=rng()*W, sy=rng()*H*0.45, sr=rng()*1.5+0.5, sa=0.3+rng()*0.5;
+      this.bgGfx.fillStyle(0xffffff,sa); this.bgGfx.fillCircle(sx,sy,sr);
+      this.menuStars.push({x:sx,y:sy,r:sr,baseAlpha:sa,twPhase:rng()*Math.PI*2,twSpeed:0.5+rng()*1.5});
+    }
+    // moon
+    const moonX=W*0.78, moonY=H*0.18, moonR=42;
+    const mg=this.add.graphics().setDepth(0);
+    for(let r=moonR+60;r>moonR;r-=4){ const a=Math.pow((moonR+60-r)/60,2)*0.2; mg.fillStyle(0xc8d0ff,a); mg.fillCircle(moonX,moonY,r); }
+    mg.fillStyle(0xd8dce8,1); mg.fillCircle(moonX,moonY,moonR);
+    mg.fillStyle(0xb0b8c8,0.3); mg.fillCircle(moonX+8,moonY+6,moonR-4);
+    const craters=[[-15,-8,8],[8,-12,6],[-4,10,7],[16,4,5],[-18,14,4],[2,-4,3],[12,16,5],[-8,-18,4]];
+    craters.forEach(([dx,dy,cr])=>{ mg.fillStyle(0xa0a8b8,0.4); mg.fillCircle(moonX+dx,moonY+dy,cr); mg.fillStyle(0x888c9c,0.3); mg.fillCircle(moonX+dx+1,moonY+dy+1,cr-2); });
+
+    // building silhouettes (static, mid layer)
+    const blds=[[60,180,120],[200,260,160],[300,140,100],[420,320,200],[560,200,130],[720,280,180],[860,160,110],[980,340,210],[1120,180,120],[1240,240,150]];
+    const bldG=this.add.graphics().setDepth(1);
+    blds.forEach(([x,h,w])=>{
+      const yy=groundY-h;
+      bldG.fillStyle(0x070a10,1); bldG.fillRect(x,yy,w,h);
+      for(let wy=yy+12;wy<yy+h-8;wy+=22){
+        for(let wx=x+8;wx<x+w-8;wx+=18){
+          if(rng()<0.35){ const col=rng()<0.7?0xC8A84B:0x4A7FA5; bldG.fillStyle(col,0.7); const sz=Math.floor(rng()*3); const sw=[6,9,16][sz], sh=[8,12,8][sz]; bldG.fillRect(wx,wy,sw,sh); }
+        }
+      }
+    });
+
+    // rain (2 layers)
+    this.menuRainB=this.add.graphics().setDepth(5);
+    this.menuRainF=this.add.graphics().setDepth(16);
+    this.menuDropsB=Array.from({length:50},()=>({x:Math.random()*W,y:Math.random()*H,speed:6+Math.random()*3,length:8+Math.random()*4,alpha:0.08+Math.random()*0.07}));
+    this.menuDropsF=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,speed:10+Math.random()*6,length:14+Math.random()*8,alpha:0.2+Math.random()*0.15}));
+
+    // thunder schedule
+    this.menuThunderNext=Phaser.Math.Between(8000,20000);
+
+    // ---- title with breathing scale + glitch ----
+    const title=this.add.text(W/2,170,'GALLERY SHOOTER',{fontFamily:'Courier New',fontSize:'72px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5).setDepth(10);
+    title.setShadow(0,0,'#600000',4,true);
+    this.titleText=title;
+    this.tweens.add({targets:title,scaleX:{from:1,to:1.04},scaleY:{from:1,to:1.04},duration:2500,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    // glitch: random horizontal offset + red shadow flash
+    this.glitchTimer=this.time.addEvent({delay:4000,loop:true,callback:()=>{
+      const offsets=[-4,4,-2,2];
+      const off=offsets[Math.floor(Math.random()*offsets.length)]*2;
+      this.tweens.add({targets:title,x:W/2+off,duration:30,yoyo:true,repeat:2,onComplete:()=>{ title.x=W/2; }});
+      title.setShadow(off,0,'#ff0000',8,true);
+      this.time.delayedCall(120,()=>title.setShadow(0,0,'#600000',4,true));
+    }});
+
+    // ---- typewriter subtitle ----
+    const subText='Aponte. Atire. Acerte os inimigos.';
+    const sub=this.add.text(W/2,250,'',{fontSize:'22px',color:'#ccd'}).setOrigin(0.5).setDepth(10);
+    this.tweens.add({targets:sub,alpha:{from:0,to:1},duration:300});
+    let charIdx=0;
+    this.typeTimer=this.time.addEvent({delay:45,loop:true,callback:()=>{
+      charIdx++; sub.setText(subText.slice(0,charIdx));
+      if(charIdx>=subText.length) this.typeTimer.remove();
+    }});
+
+    // ---- elaborated button: glow pulse + scan-line ----
+    const btnY=340;
+    // glow layers (3 expanding rects behind button)
+    this.btnGlows=[];
+    for(let i=0;i<3;i++){
+      const glow=this.add.rectangle(W/2,btnY,320+i*10,70+i*6,0xff4040,0.06).setDepth(3);
+      this.tweens.add({targets:glow,alpha:{from:0.04+i*0.02,to:0.14+i*0.02},duration:1500,yoyo:true,repeat:-1,delay:i*120,ease:'Sine.inOut'});
+      this.btnGlows.push(glow);
+    }
+    const btn=this.add.rectangle(W/2,btnY,320,70,0x222a33).setStrokeStyle(3,0xff4040).setDepth(4);
+    const btxt=this.add.text(W/2,btnY,'INICIAR JOGO',{fontSize:'30px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(5);
+    // scan-line effect: thin rect sweeping vertically across button
+    this.scanLine=this.add.rectangle(W/2,btnY,316,3,0x88ddff,0.25).setDepth(5);
+    this.tweens.add({targets:this.scanLine,y:{from:btnY-32,to:btnY+32},duration:800,repeat:-1,yoyo:false,onRepeat:()=>{ this.scanLine.y=btnY-32; }});
+    // hover particles
     btn.setInteractive({useHandCursor:true});
-    btn.on('pointerover',()=>btn.setFillStyle(0x33404d));
-    btn.on('pointerout',()=>btn.setFillStyle(0x222a33));
+    btn.on('pointerover',()=>{
+      btn.setFillStyle(0x33404d);
+      this.btnGlows.forEach(g=>g.setFillStyle(0xff6060));
+    });
+    btn.on('pointerout',()=>{
+      btn.setFillStyle(0x222a33);
+      this.btnGlows.forEach(g=>g.setFillStyle(0xff4040));
+    });
     btn.on('pointerdown',()=>{ Audio.init(); Audio.resume(); Audio.startAmbient(); this.scene.start('Game'); });
 
+    // ---- enemy preview thumbnails ----
+    const enemies=['soldier','sniper','tank','suicide','ghost','innocent'];
+    const names=['SOLDADO','SNIPER','TANQUE','SUICIDA','FANTASMA','CIVIL'];
+    const eKeys=['enemy_soldier','enemy_sniper','enemy_tank','enemy_suicide','enemy_ghost','enemy_innocent'];
+    const iconY=430;
+    const spacing=150;
+    const startX=W/2-(enemies.length-1)*spacing/2;
+    enemies.forEach((type,i)=>{
+      const cx=startX+i*spacing;
+      // circular background
+      const circ=this.add.graphics().setDepth(3);
+      circ.fillStyle(0x111a22,0.6); circ.fillCircle(cx,iconY,42);
+      circ.lineStyle(2,0x2a3a4a,0.6); circ.strokeCircle(cx,iconY,42);
+      circ.fillStyle(0x0a0e14,0.7); circ.fillCircle(cx,iconY,38);
+      // enemy image
+      this.add.image(cx,iconY,eKeys[i]).setDisplaySize(44,66).setDepth(4).setScale(0.7);
+      // label below
+      this.add.text(cx,iconY+48,names[i],{fontSize:'11px',color:'#8899aa'}).setOrigin(0.5).setDepth(4);
+    });
+
+    // ---- help text ----
     const help=[
       '[>] Clique esquerdo: atirar',
       '[R] Recarregar  ('+CLIP_SIZE+' balas / pente)',
-      '[M] Clique em itens para coletar',
       '[P] ESC / P: pausar',
-      '',
-      'Elimine soldados, snipers, tanques, suicidas e fantasmas.',
       'Cuidado com os CIVIS — azul/amarelo, sem arma.',
     ];
-    this.add.text(BASE_W/2,500,help,{fontSize:'18px',color:'#aabbcc',align:'center',lineSpacing:6}).setOrigin(0.5);
+    this.add.text(W/2,530,help,{fontSize:'13px',color:'#667788',align:'center',lineSpacing:2}).setOrigin(0.5).setDepth(4);
+
+    // ---- footer: version + highscore ----
+    this.add.text(12,H-14,'v1.1.0',{fontSize:'11px',color:'#445566'}).setOrigin(0,0.5).setDepth(5);
+    const hs=parseInt(localStorage.getItem('gs_highscore')||'0',10);
+    this.add.text(W-12,H-14,hs>0?'RECORDE: '+hs.toLocaleString():'',{fontSize:'13px',color:'#ffcc44'}).setOrigin(1,0.5).setDepth(5);
+
+    // saved references for update()
+    this.menuW=W; this.menuH=H; this.menuGroundY=groundY;
+  }
+  update(time,delta){
+    const W=this.menuW,H=this.menuH;
+    // star twinkle overlay
+    if(!this.starOverlay){ this.starOverlay=this.add.graphics().setDepth(0); }
+    const g=this.starOverlay; g.clear();
+    const tn=time*0.001;
+    this.menuStars.forEach(s=>{
+      const tw=Math.sin(tn*s.twSpeed+s.twPhase)*0.3+0.7;
+      const a=s.baseAlpha*tw;
+      if(a>s.baseAlpha*0.5){ g.fillStyle(0xffffff,a*0.3); g.fillCircle(s.x,s.y,s.r); }
+    });
+    // rain
+    this.updateMenuRain(this.menuRainB,this.menuDropsB);
+    this.updateMenuRain(this.menuRainF,this.menuDropsF);
+    // thunder
+    this.menuThunderNext-=delta;
+    if(this.menuThunderNext<=0){
+      const flash=this.add.rectangle(W/2,H/2,W,H,0xffffff,0).setDepth(999);
+      this.tweens.add({targets:flash,alpha:{from:0,to:0.5},duration:40,yoyo:true,onComplete:()=>flash.destroy()});
+      this.menuThunderNext=Phaser.Math.Between(10000,25000);
+    }
+  }
+  updateMenuRain(g,drops){
+    const W=this.menuW,H=this.menuH, wind=0.25;
+    g.clear();
+    drops.forEach(d=>{
+      d.y+=d.speed; d.x+=d.speed*wind;
+      if(d.y>H){ d.y=-d.length; d.x=Phaser.Math.Between(-100,W); }
+      if(d.x>W+20) d.x=-20; if(d.x<-20) d.x=W+20;
+      g.lineStyle(1,0xAAAACC,d.alpha);
+      g.strokeLineShape(new Phaser.Geom.Line(d.x,d.y,d.x+wind*d.length,d.y+d.length));
+    });
   }
 }
 
@@ -964,7 +1120,7 @@ class GameScene extends Phaser.Scene {
         s.targetX=Phaser.Math.FloatBetween(W*0.15,W*0.85);
         s.nextTrigger=Phaser.Math.Between(6000,14000); }
       else {
-        s.x=Phaser.Display.Linear(s.startX,s.endX,t);
+        s.x=Phaser.Math.Linear(s.startX,s.endX,t);
         s.alpha = t<0.15 ? t/0.15 : t>0.85 ? (1-t)/0.15 : 1;
         s.alpha *= 0.08;
       }
