@@ -40,12 +40,22 @@ const ENEMY_DEFS = {
   villager:{ hp:1, vis:[3000,4000], dmg:0,   pts:0,   color:0x2a7ad9, icon:'CIV' },
 };
 const ITEM_DEFS = {
-  med:  { icon:'💊', life:5000 },
-  ammo: { icon:'🔫', life:5000 },
-  shield:{ icon:'🛡️', life:5000 },
-  slow: { icon:'⏱️', life:5000 },
-  nade: { icon:'💥', life:5000 },
+  // common — white aura
+  med:    { icon:'💊', life:7000,  tier:'common', color:0xffffff },
+  ammo:   { icon:'🔫', life:7000,  tier:'common', color:0xffffff },
+  // rare — blue aura
+  shield: { icon:'🛡️', life:9000,  tier:'rare',   color:0x40c0ff, shield:3 },
+  slow:   { icon:'⏱️', life:9000,  tier:'rare',   color:0x40c0ff, duration:6000 },
+  freeze: { icon:'❄️', life:9000,  tier:'rare',   color:0x40c0ff, duration:4000 },
+  lifesteal:{ icon:'🩸', life:9000, tier:'rare',   color:0x40c0ff, shots:6, heal:5 },
+  radar:  { icon:'📡', life:9000,  tier:'rare',   color:0x40c0ff, duration:6000 },
+  // epic — gold aura
+  nade:   { icon:'💥', life:11000, tier:'epic',   color:0xffcc44 },
+  berserker:{ icon:'💢', life:11000, tier:'epic',  color:0xffcc44, duration:8000 },
+  doublepts:{ icon:'✨', life:11000, tier:'epic',  color:0xffcc44, duration:10000 },
 };
+// items available per tier (common/rare/epic)
+const ITEM_POOL = ['med','ammo','shield','slow','freeze','lifesteal','radar','nade','berserker','doublepts'];
 /* round difficulty scale: weights per type, hp multiplier, visibility multiplier, speed multiplier */
 function getRoundScale(r){
   const clamp=v=>Math.max(0,v);
@@ -66,6 +76,13 @@ function getRoundScale(r){
     },
     innocentRate: 0.15+t*0.10, // villagers
     innocentsCount: Math.max(1,Math.floor(r/3)+1),
+    dropChance: Math.min(0.25, 0.12 + t*0.13), // monster drop chance on kill
+    // tier weights shift toward rare/epic as rounds rise
+    tierWeights: {
+      common: Math.max(0.30, 0.65 - t*0.35),
+      rare:   0.28 + t*0.10,
+      epic:   0.07 + t*0.18,
+    },
   };
 }
 function getSpawnBounds(r){
@@ -409,6 +426,97 @@ class BootScene extends Phaser.Scene {
       g.fillStyle(0x222222,1); g.fillCircle(24,6,4);
       g.generateTexture('item_nade',48,48); g.clear();
     }
+    // ---- BERSERKER : red battle aura sphere with crossed blades ----
+    {
+      // red glowing sphere
+      g.fillStyle(0x661010,1); g.fillCircle(24,24,18);
+      g.lineStyle(2,0xff3030,1); g.strokeCircle(24,24,18);
+      // inner glow core
+      g.fillStyle(0xff4040,0.6); g.fillCircle(24,24,10);
+      // crossed blades (white)
+      g.fillStyle(0xeeeeee,1);
+      g.fillRect(14,23,20,2);
+      g.fillRect(23,14,2,20);
+      // blade tips
+      g.fillTriangle(12,23,14,23,14,21);
+      g.fillTriangle(12,25,14,25,14,27);
+      g.fillTriangle(36,23,34,23,34,21);
+      g.fillTriangle(36,25,34,25,34,27);
+      g.generateTexture('item_berserker',48,48); g.clear();
+    }
+    // ---- FREEZE : ice crystal (light blue facets) ----
+    {
+      g.fillStyle(0x88ccff,1);
+      g.beginPath();
+      g.moveTo(24,4); g.lineTo(38,18); g.lineTo(32,42); g.lineTo(16,42); g.lineTo(10,18);
+      g.closePath(); g.fillPath();
+      g.lineStyle(2,0xc8eeff,1); g.strokePath();
+      // inner facets
+      g.fillStyle(0xbfe6ff,0.8);
+      g.beginPath(); g.moveTo(24,4); g.lineTo(24,42); g.lineTo(32,42); g.lineTo(38,18); g.closePath(); g.fillPath();
+      g.lineStyle(1,0xffffff,0.7); g.beginPath();
+      g.moveTo(24,4); g.lineTo(24,42); g.moveTo(10,18); g.lineTo(38,18); g.strokePath();
+      g.generateTexture('item_freeze',48,48); g.clear();
+    }
+    // ---- LIFESTEAL : blood drop vial ----
+    {
+      // dark outline drop (pointed top, round bottom)
+      g.fillStyle(0x6a0808,1);
+      g.beginPath();
+      g.moveTo(24,4);
+      g.lineTo(36,26);
+      g.arc(24,28,14,0,Math.PI,true);
+      g.lineTo(12,26);
+      g.closePath(); g.fillPath();
+      // bright red blood (inner)
+      g.fillStyle(0xcc1010,1);
+      g.beginPath();
+      g.moveTo(24,9);
+      g.lineTo(33,26);
+      g.arc(24,28,9,0,Math.PI,true);
+      g.lineTo(15,26);
+      g.closePath(); g.fillPath();
+      // highlight
+      g.fillStyle(0xff6060,0.8); g.fillEllipse(20,18,6,10);
+      g.lineStyle(1,0x3a0404,1); g.strokePath();
+      g.generateTexture('item_lifesteal',48,48); g.clear();
+    }
+    // ---- RADAR : dish with sweep ----
+    {
+      // base ring
+      g.fillStyle(0x1a3a2a,1); g.fillCircle(24,28,18);
+      g.lineStyle(2,0x40cc66,1); g.strokeCircle(24,28,18);
+      g.lineStyle(1,0x40cc66,0.6); g.strokeCircle(24,28,12); g.strokeCircle(24,28,6);
+      // dish arc (filled segment)
+      g.fillStyle(0x40cc66,0.45);
+      g.beginPath(); g.arc(24,28,16,-Math.PI*0.6,-Math.PI*0.2); g.lineTo(24,28); g.closePath(); g.fillPath();
+      // center dome
+      g.fillStyle(0x80ffaa,1); g.fillCircle(24,28,4);
+      // mast
+      g.fillStyle(0x224422,1); g.fillRect(23,6,2,8);
+      g.generateTexture('item_radar',48,48); g.clear();
+    }
+    // ---- DOUBLEPTS : golden star sparkle ----
+    {
+      // outer star
+      g.fillStyle(0xffcc44,1);
+      g.beginPath();
+      const sx=24, sy=22, R=18, r=7;
+      for(let i=0;i<10;i++){
+        const ang=Math.PI*0.1 + i*Math.PI/5;
+        const rad=i%2===0?R:r;
+        const px=sx+Math.cos(ang)*rad, py=sy+Math.sin(ang)*rad;
+        if(i===0) g.moveTo(px,py); else g.lineTo(px,py);
+      }
+      g.closePath(); g.fillPath();
+      g.lineStyle(2,0xffaa20,1); g.strokePath();
+      // inner highlight
+      g.fillStyle(0xffee88,0.7); g.fillCircle(24,22,5);
+      // "x2" text drawn as rects
+      g.fillStyle(0x804000,1); g.fillRect(20,32,2,8); g.fillRect(26,32,2,8);
+      g.fillRect(22,34,2,2); g.fillRect(24,36,2,2); g.fillRect(20,38,8,2);
+      g.generateTexture('item_doublepts',48,48); g.clear();
+    }
     g.destroy();
   }
 }
@@ -640,7 +748,9 @@ class Enemy extends Phaser.GameObjects.Container {
   }
   takeHit(scene){
     if(!this.alive) return false;
-    this.hp--;
+    // berserker buff: instant kill (bypass hp)
+    const berzing = scene.stats && scene.stats.berserkUntil && scene.time.now<scene.stats.berserkUntil;
+    if(berzing) this.hp=0; else this.hp--;
     Audio.hit();
     scene.spawnBlood(this.x,this.y);
     if(this.hp<=0){ this.die(scene); return true; }
@@ -702,17 +812,38 @@ class Wraith extends Enemy {
 class PowerUp extends Phaser.GameObjects.Container {
   constructor(scene,x,y,kind){
     super(scene,x,y); scene.add.existing(this);
-    this.kind=kind; this.born=scene.time.now; this.life=ITEM_DEFS[kind].life;
-    const bg=scene.add.image(0,0,'item_'+kind);
-    this.add([bg]); this.setSize(48,48); this.setDepth(20);
-    // collection handled by GameScene.tryShoot (cursor hidden, single handler avoids double-collect)
-    scene.tweens.add({targets:this,scaleX:1.1,scaleY:1.1,duration:400,yoyo:true,repeat:-1});
+    this.kind=kind; this.born=scene.time.now;
+    const def=ITEM_DEFS[kind]; this.life=def.life; this.tier=def.tier;
+    // tier aura ring (pulsing color)
+    const auraColor=def.color;
+    this.aura=scene.add.graphics().setDepth(19);
+    this.add(this.aura);
+    // item icon
+    const bg=scene.add.image(0,0,'item_'+kind).setDepth(20);
+    this.add(bg); this.bg=bg;
+    this.setSize(48,48); this.setDepth(20);
+    this.auraPulse=0;
   }
-  preUpdate(){
+  preUpdate(t,d){
     if(!this.scene || !this.scene.sys) return;
     const age=this.scene.time.now-this.born;
+    // pulsing aura ring grows/fades with tier color
+    this.auraPulse=(this.auraPulse+d/600)%1;
+    const ring=this.auraPulse*Math.PI*2;
+    const r=26 + Math.sin(ring)*4;
+    this.aura.clear();
+    this.aura.lineStyle(3, ITEM_DEFS[this.kind].color, 0.45+0.35*(0.5+0.5*Math.sin(ring)));
+    this.aura.strokeCircle(0,0,r);
+    // last 1.2s blink fast so player notices it's expiring
     if(age>this.life-1200) this.alpha=(Math.sin(this.scene.time.now/80)+1)/2*0.5+0.4;
-    if(age>this.life){ this.scene.activeItem=null; this.destroy(); }
+    if(age>this.life){
+      if(this.scene.items) this.scene.items=this.scene.items.filter(i=>i!==this);
+      this.destroy();
+    }
+  }
+  destroy(fromScene){
+    if(this.aura) this.aura.destroy();
+    super.destroy(fromScene);
   }
 }
 
@@ -727,8 +858,9 @@ class GameScene extends Phaser.Scene {
     // stats
     this.stats={ hp:100, ammo:CLIP_SIZE, reloading:false, score:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
-      shield:0, slowUntil:0, continues:3, lastContinueScore:0 };
-    this.enemies=[]; this.activeItem=null; this.paused=false; this.over=false;
+      shield:0, slowUntil:0, berserkUntil:0, freezeUntil:0,
+      lifestealShots:0, radarUntil:0, doubleUntil:0, continues:3, lastContinueScore:0 };
+    this.enemies=[]; this.items=[]; this.paused=false; this.over=false;
     this.roundScale=getRoundScale(1);
 
     // damage vignette
@@ -756,7 +888,7 @@ class GameScene extends Phaser.Scene {
     // round control
     this.roundSpawnTotal=10; this.roundSpawned=0; this.roundEscaped=0; this.roundActive=true;
     this.spawnTimer=0; this.spawnInterval=1100; this.maxConcurrent=2;
-    this.itemTimer=Phaser.Math.Between(20000,40000);
+    this.itemTimer=Phaser.Math.Between(12000,22000);
     this.roundInnocentsSpawned=0;
     this.roundInnocentsCount=Math.max(1,Math.floor(this.stats.round/2)+1);
     this.roundBanner();
@@ -1297,9 +1429,13 @@ class GameScene extends Phaser.Scene {
       const e=this.enemies[i]; if(!e.alive) continue;
       if(Math.abs(e.x-tx)<e.width/2+6 && Math.abs(e.y-ty)<e.height/2+6){ hit=e; break; }
     }
-    // item click handled by container; but also check active item
-    if(!hit && this.activeItem && Math.abs(this.activeItem.x-tx)<24 && Math.abs(this.activeItem.y-ty)<24){
-      this.collectItem(this.activeItem); return;
+    // item click: any on-screen item
+    if(!hit){
+      for(const it of this.items){
+        if(it.active && Math.abs(it.x-tx)<24 && Math.abs(it.y-ty)<24){
+          this.collectItem(it); return;
+        }
+      }
     }
     if(hit){
       this.stats.shotsHit++;
@@ -1352,6 +1488,8 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(e){
     this.stats.kills++;
     this.stats.score+=e.def.pts*this.stats.combo;
+    // silver+ streak: kills multiply score (silver jerker active)
+    if(this.stats.berserkUntil && this.time.now<this.stats.berserkUntil) this.stats.score+=e.def.pts*this.stats.combo;
     const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/10000);
     if(earned>0){
       this.stats.continues+=earned;
@@ -1359,6 +1497,10 @@ class GameScene extends Phaser.Scene {
       this.showContinueEarnedBanner(earned);
     }
     this.spawnBlood(e.x,e.y,true);
+    // monster drop: chance scales with round (silver jerker pushes +2 tier slots)
+    if(this.items.length<2 && Math.random()<this.roundScale.dropChance){
+      this.spawnItem(undefined, e.x, e.y);
+    }
     this.ui.refresh();
   }
   showContinueEarnedBanner(earned){
@@ -1369,24 +1511,34 @@ class GameScene extends Phaser.Scene {
   }
 
   /* ---------- items ---------- */
-  spawnItem(){
-    if(this.activeItem) return;
-    const kinds=Object.keys(ITEM_DEFS);
-    const kind=Phaser.Utils.Array.GetRandom(kinds);
+  spawnItem(kind, x, y){
+    if(this.items.length>=2) return;
+    const def=kind?ITEM_DEFS[kind]:null;
+    if(!kind){
+      // roll tier weighted by round
+      const tw=this.roundScale.tierWeights;
+      const tot=tw.common+tw.rare+tw.epic;
+      let rr=Math.random()*tot, tier;
+      if(rr<tw.common) tier='common'; else if(rr<tw.common+tw.rare) tier='rare'; else tier='epic';
+      const pool=ITEM_POOL.filter(k=>ITEM_DEFS[k].tier===tier);
+      kind=pool[Phaser.Math.Between(0,pool.length-1)];
+    }
     const sb=getSpawnBounds(this.stats.round);
-    const x=Phaser.Math.Between(sb.itemXMin,sb.itemXMax), y=Phaser.Math.Between(sb.itemYMin,sb.itemYMax);
-    this.activeItem=new PowerUp(this,x,y,kind);
+    if(x===undefined) x=Phaser.Math.Between(sb.itemXMin,sb.itemXMax);
+    if(y===undefined) y=Phaser.Math.Between(sb.itemYMin,sb.itemYMax);
+    this.items.push(new PowerUp(this,x,y,kind));
   }
   collectItem(item){
     if(!item||!item.active) return;
     Audio.item();
-    const k=item.kind;
-    if(k==='med') this.stats.hp=Math.min(100,this.stats.hp+30);
+    const k=item.kind; const def=ITEM_DEFS[k];
+    if(k==='med') this.stats.hp=Math.min(100,this.stats.hp+20);
     else if(k==='ammo') this.stats.ammo=CLIP_SIZE;
-    else if(k==='shield') this.stats.shield=2;
-    else if(k==='slow'){ this.stats.slowUntil=this.time.now+5000; this.applySlow(true); this.time.delayedCall(5000,()=>this.applySlow(false)); }
+    else if(k==='shield') this.stats.shield=def.shield||3;
+    else if(k==='slow'){ this.stats.slowUntil=this.time.now+def.duration; this.applySlow(true); this.time.delayedCall(def.duration,()=>this.applySlow(false)); }
+    else if(k==='berserker'){ this.stats.berserkUntil=this.time.now+def.duration; Audio.kill(); }
     else if(k==='nade') this.grenade();
-    this.tweens.add({targets:item,scaleX:1.6,scaleY:1.6,alpha:0,duration:200,onComplete:()=>{ item.destroy(); this.activeItem=null; }});
+    this.tweens.add({targets:item,scaleX:1.6,scaleY:1.6,alpha:0,duration:200,onComplete:()=>{ this.items=this.items.filter(i=>i!==item); item.destroy(); }});
     this.ui.refresh();
   }
   applySlow(on){
@@ -1474,9 +1626,9 @@ class GameScene extends Phaser.Scene {
       this.spawnEnemy();
       this.spawnTimer=this.spawnInterval+Phaser.Math.Between(-200,200);
     }
-    // item spawn timer
+    // item spawn timer — up to 2 simultaneous, more frequent
     this.itemTimer-=delta;
-    if(this.itemTimer<=0 && !this.activeItem){ this.spawnItem(); this.itemTimer=Phaser.Math.Between(20000,40000); }
+    if(this.itemTimer<=0 && this.items.length<2){ this.spawnItem(); this.itemTimer=Phaser.Math.Between(12000,22000); }
 
     // update enemies (containers need manual preUpdate? Phaser Container has preUpdate)
     this.enemies=this.enemies.filter(e=>e.active);
@@ -1513,7 +1665,10 @@ class GameScene extends Phaser.Scene {
       }
     }
     if(onEnemy) color=0xff4040; else if(onInnocent) color=0x40ff40; else color=0xffffff;
-    if(this.activeItem && Math.abs(this.activeItem.x-this.mx)<24 && Math.abs(this.activeItem.y-this.my)<24) color=0x40c0ff;
+    // hover any item — use its tier color
+    for(const it of this.items){
+      if(it.active && Math.abs(it.x-this.mx)<24 && Math.abs(it.y-this.my)<24){ color=ITEM_DEFS[it.kind].color; break; }
+    }
     this.crossColor=color;
     const g=this.crosshair; g.clear();
     const spread=6+this.crossSpread*10;
@@ -1559,6 +1714,34 @@ class UIScene extends Phaser.Scene {
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
     // continues
     this.continueTxt=this.add.text(BASE_W/2,52,'CON x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
+    // active buffs panel (bottom-left, above ammo)
+    this.buffPanel=this.add.container(20,BASE_H-90).setDepth(50);
+    this.buffSlots=[];
+  }
+  update(){
+    const g=this.gameScene; if(!g||!g.time) return;
+    const now=g.time.now;
+    const active=[];
+    if(g.stats.slowUntil>now) active.push({k:'⏱️',label:'LENTO',until:g.stats.slowUntil,max:6000,color:'#40c0ff'});
+    if(g.stats.berserkUntil>now) active.push({k:'💢',label:'FÚRIA',until:g.stats.berserkUntil,max:8000,color:'#ff4040'});
+    // rebuild only when count changes (cheap)
+    if(active.length!==this.buffSlots.length){
+      this.buffSlots.forEach(s=>s.txt.destroy());
+      this.buffSlots=[];
+      active.forEach((a,i)=>{
+        const txt=this.add.text(0,i*22,a.k+' '+a.label,{fontSize:'14px',color:'#fff',backgroundColor:'rgba(0,0,0,0.55)',padding:{x:4,y:2}}).setOrigin(0,0.5);
+        this.buffPanel.add(txt);
+        this.buffSlots.push({txt,max:a.until-a.max,until:a.until,color:a.color});
+      });
+    }
+    // refresh timers + color blink near expiry
+    this.buffSlots.forEach((s,i)=>{
+      const remain=this.buffSlots[i].until-now;
+      const total=this.buffSlots[i].until-this.buffSlots[i].max;
+      const pct=Math.max(0,Math.min(1,remain/total));
+      const blink=remain<1500?(Math.sin(now/80)+1)/2:1;
+      this.buffSlots[i].txt.setAlpha(0.4+0.6*blink);
+    });
   }
   refresh(){
     const s=this.s;
