@@ -107,8 +107,10 @@ const Audio = {
   ctx:null, master:null, ambient:null,
   init(){
     if(this.ctx) return;
-    this.ctx = new (window.AudioContext||window.webkitAudioContext)();
-    this.master = this.ctx.createGain(); this.master.gain.value=0.5; this.master.connect(this.ctx.destination);
+    try {
+      this.ctx = new (window.AudioContext||window.webkitAudioContext)();
+      this.master = this.ctx.createGain(); this.master.gain.value=0.5; this.master.connect(this.ctx.destination);
+    } catch(e){ /* autoplay-policy or unsupported: audio disabled, game keeps running */ }
   },
   resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
   noise(dur){
@@ -122,21 +124,25 @@ const Audio = {
     g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(peak,t0+a); g.gain.exponentialRampToValueAtTime(0.0001,t0+a+d);
   },
   shot(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, src=this.noise(0.08), g=this.ctx.createGain(), f=this.ctx.createBiquadFilter();
     f.type='highpass'; f.frequency.value=600; src.connect(f); f.connect(g); g.connect(this.master);
     this.env(g,t,0.001,0.08,0.9); src.start(t); src.stop(t+0.1);
   },
   hit(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, o=this.ctx.createOscillator(), g=this.ctx.createGain();
     o.type='square'; o.frequency.setValueAtTime(180,t); o.frequency.exponentialRampToValueAtTime(80,t+0.1);
     o.connect(g); g.connect(this.master); this.env(g,t,0.002,0.1,0.6); o.start(t); o.stop(t+0.12);
   },
   kill(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, o=this.ctx.createOscillator(), g=this.ctx.createGain();
     o.type='sawtooth'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(60,t+0.2);
     o.connect(g); g.connect(this.master); this.env(g,t,0.003,0.2,0.5); o.start(t); o.stop(t+0.22);
   },
   hurt(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, src=this.noise(0.12), g=this.ctx.createGain(), f=this.ctx.createBiquadFilter();
     f.type='bandpass'; f.frequency.value=1200; src.connect(f); f.connect(g); g.connect(this.master);
     this.env(g,t,0.002,0.13,0.7); src.start(t); src.stop(t+0.15);
@@ -144,6 +150,7 @@ const Audio = {
     o.type='square';o.frequency.setValueAtTime(880,t);o.connect(g2);g2.connect(this.master);this.env(g2,t,0.002,0.12,0.3);o.start(t);o.stop(t+0.14);
   },
   innocent(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, freqs=[220,233,290,180];
     freqs.forEach((f,i)=>{
       const o=this.ctx.createOscillator(),g=this.ctx.createGain(),tt=t+i*0.06;
@@ -151,11 +158,13 @@ const Audio = {
     });
   },
   item(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime, o=this.ctx.createOscillator(), g=this.ctx.createGain();
     o.type='triangle'; o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(880,t+0.12);
     o.connect(g); g.connect(this.master); this.env(g,t,0.003,0.15,0.4); o.start(t); o.stop(t+0.17);
   },
   reload(){
+    if(!this.ctx) return;
     const t=this.ctx.currentTime;
     [0,0.18].forEach(d=>{
       const o=this.ctx.createOscillator(),g=this.ctx.createGain(),tt=t+d;
@@ -163,6 +172,7 @@ const Audio = {
     });
   },
   startAmbient(){
+    if(!this.ctx) return;
     if(this.ambient) return;
     const o=this.ctx.createOscillator(),g=this.ctx.createGain(),f=this.ctx.createBiquadFilter();
     f.type='lowpass';f.frequency.value=400;o.type='sawtooth';o.frequency.value=55;
@@ -1536,6 +1546,10 @@ class GameScene extends Phaser.Scene {
     else if(k==='ammo') this.stats.ammo=CLIP_SIZE;
     else if(k==='shield') this.stats.shield=def.shield||3;
     else if(k==='slow'){ this.stats.slowUntil=this.time.now+def.duration; this.applySlow(true); this.time.delayedCall(def.duration,()=>this.applySlow(false)); }
+    else if(k==='freeze') this.applyFreeze(def.duration);
+    else if(k==='lifesteal') this.stats.lifestealShots=def.shots;
+    else if(k==='radar') this.stats.radarUntil=this.time.now+def.duration;
+    else if(k==='doublepts') this.stats.doubleUntil=this.time.now+def.duration;
     else if(k==='berserker'){ this.stats.berserkUntil=this.time.now+def.duration; Audio.kill(); }
     else if(k==='nade') this.grenade();
     this.tweens.add({targets:item,scaleX:1.6,scaleY:1.6,alpha:0,duration:200,onComplete:()=>{ this.items=this.items.filter(i=>i!==item); item.destroy(); }});
@@ -1544,6 +1558,25 @@ class GameScene extends Phaser.Scene {
   applySlow(on){
     this.enemies.forEach(e=>{ e.slowFactor=on?0.5:1; });
     if(on) Audio.slowOn(); else Audio.slowOff();
+  }
+  applyFreeze(duration){
+    this.stats.freezeUntil=this.time.now+duration;
+    this.enemies.forEach(e=>{ e.slowFactor=0.05; });
+    // tint frozen enemies ice-blue
+    this.enemies.forEach(e=>{ if(e.body){ e._freezeTint=true; e.body.setTint(0x88ddff); } });
+    Audio.slowOn();
+    this.time.delayedCall(duration,()=>{
+      // restore: only un-freeze enemies still alive (slow factor may have been overridden by slow buff)
+      const slowBuff = this.stats.slowUntil && this.time.now < this.stats.slowUntil;
+      this.enemies.forEach(e=>{
+        if(e.active && e._freezeTint){
+          e._freezeTint=false;
+          e.body && e.body.clearTint();
+          e.slowFactor = slowBuff ? 0.5 : 1;
+        }
+      });
+      Audio.slowOff();
+    });
   }
   grenade(){
     Audio.kill();
