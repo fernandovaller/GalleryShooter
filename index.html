@@ -872,10 +872,11 @@ class GameScene extends Phaser.Scene {
     Audio.resume();
     this.buildScenery();
     // stats
-    this.stats={ hp:100, ammo:CLIP_SIZE, reloading:false, score:0, combo:1, comboCount:0,
+    this.stats={ hp:100, maxHp:100, ammo:CLIP_SIZE, clipSize:CLIP_SIZE, reloading:false, score:0, coins:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
       shield:0, slowUntil:0, berserkUntil:0, freezeUntil:0,
-      lifestealShots:0, radarUntil:0, doubleUntil:0, continues:3, lastContinueScore:0 };
+      lifestealShots:0, radarUntil:0, doubleUntil:0, continues:3, lastContinueScore:0,
+      upgrades:{}, startShield:0, lifestealAdd:0 };
     this.enemies=[]; this.items=[]; this.paused=false; this.over=false;
     this.roundScale=getRoundScale(1);
 
@@ -1477,9 +1478,10 @@ class GameScene extends Phaser.Scene {
   }
   reload(){
     if(this.stats.reloading||this.over||this.paused) return;
-    if(this.stats.ammo>=CLIP_SIZE) return;
+    if(this.stats.ammo>=this.stats.clipSize) return;
     this.stats.reloading=true; this.ui.refresh(); Audio.reload();
-    this.time.delayedCall(RELOAD_MS,()=>{ this.stats.ammo=CLIP_SIZE; this.stats.reloading=false; this.ui.refresh(); });
+    const dur=Math.max(300, RELOAD_MS - (this.stats.upgrades.reload||0)*150);
+    this.time.delayedCall(dur,()=>{ this.stats.ammo=this.stats.clipSize; this.stats.reloading=false; this.ui.refresh(); });
   }
   killInnocent(e){
     e.killed=true; e.alive=false;
@@ -1515,9 +1517,12 @@ class GameScene extends Phaser.Scene {
       this.stats.lastContinueScore+=earned*10000;
       this.showContinueEarnedBanner(earned);
     }
+    // earn coins per kill
+    this.stats.coins += 2 + (e.def.pts>=300?3:0);
     this.spawnBlood(e.x,e.y,true);
-    // monster drop: chance scales with round (silver jerker pushes +2 tier slots)
-    if(this.items.length<2 && Math.random()<this.roundScale.dropChance){
+    // monster drop: chance scales with round + drop upgrade
+    const dropChance = Math.min(0.4, this.roundScale.dropChance + (this.stats.upgrades.dropch||0)*0.05);
+    if(this.items.length<2 && Math.random()<dropChance){
       this.spawnItem(undefined, e.x, e.y);
     }
     this.ui.refresh();
@@ -1551,12 +1556,12 @@ class GameScene extends Phaser.Scene {
     if(!item||!item.active) return;
     Audio.item();
     const k=item.kind; const def=ITEM_DEFS[k];
-    if(k==='med') this.stats.hp=Math.min(100,this.stats.hp+20);
-    else if(k==='ammo') this.stats.ammo=CLIP_SIZE;
+    if(k==='med') this.stats.hp=Math.min(this.stats.maxHp,this.stats.hp+20);
+    else if(k==='ammo') this.stats.ammo=this.stats.clipSize;
     else if(k==='shield') this.stats.shield=def.shield||3;
     else if(k==='slow'){ this.stats.slowUntil=this.time.now+def.duration; this.applySlow(true); this.time.delayedCall(def.duration,()=>this.applySlow(false)); }
     else if(k==='freeze') this.applyFreeze(def.duration);
-    else if(k==='lifesteal') this.stats.lifestealShots=def.shots;
+    else if(k==='lifesteal') this.stats.lifestealShots=def.shots + this.stats.lifestealAdd;
     else if(k==='radar') this.stats.radarUntil=this.time.now+def.duration;
     else if(k==='doublepts') this.stats.doubleUntil=this.time.now+def.duration;
     else if(k==='berserker'){ this.stats.berserkUntil=this.time.now+def.duration; Audio.kill(); }
@@ -1610,8 +1615,8 @@ class GameScene extends Phaser.Scene {
   useContinue(){
     if(this.stats.continues>0){
       this.stats.continues--;
-      this.stats.hp=100;
-      this.stats.ammo=CLIP_SIZE;
+      this.stats.hp=this.stats.maxHp;
+      this.stats.ammo=this.stats.clipSize;
       this.stats.reloading=false;
       this.stats.shield=0;
       this.showContinueBanner();
@@ -1684,18 +1689,61 @@ class GameScene extends Phaser.Scene {
     this.updateCrosshair();
     // spread decay
     if(this.crossSpread>0){ this.crossSpread=Math.max(0,this.crossSpread-delta/300); }
+    // radar overlay: highlight enemies with arrow markers
+    this.updateRadar();
+  }
+  updateRadar(){
+    if(!this.radarGfx){
+      this.radarGfx=this.add.graphics().setDepth(98);
+    }
+    const g=this.radarGfx; g.clear();
+    if(!(this.stats.radarUntil && this.time.now<this.stats.radarUntil)) return;
+    // pulse alpha
+    const pulse=0.5+0.5*Math.sin(this.time.now/150);
+    this.enemies.forEach(e=>{
+      if(!e.alive) return;
+      // arrow from screen-edge toward enemy position
+      const ex=e.x, ey=e.y-20;
+      // distance from crosshair center
+      const dx=ex-this.mx, dy=ey-this.my, dist=Math.hypot(dx,dy)||1;
+      // draw small chevron 30px above enemy, pointing down
+      const ax=ex, ay=ey-30 - pulse*4;
+      g.lineStyle(3,0x40cc66,0.9);
+      g.beginPath();
+      g.moveTo(ax-6,ay-6); g.lineTo(ax,ay); g.lineTo(ax+6,ay-6);
+      g.strokePath();
+      // ring around enemy
+      g.lineStyle(2,0x40cc66,0.5+pulse*0.4);
+      g.strokeCircle(ex,ey,28+pulse*4);
+    });
   }
   nextRound(){
     this.roundActive=false;
-    const sub=this.add.text(BASE_W/2,BASE_H/2,'ROUND '+this.stats.round+' CONCLUÍDO\nPontos: '+this.stats.score,{fontSize:'36px',color:'#7fff7f',align:'center',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
-    this.time.delayedCall(3000,()=>{
+    // reward coins for completing round
+    const bonus = 20 + this.stats.round * 5;
+    this.stats.coins += bonus;
+    const sub=this.add.text(BASE_W/2,BASE_H/2,'ROUND '+this.stats.round+' CONCLUÍDO\nPontos: '+this.stats.score+'\n+'+bonus+' moedas',{fontSize:'36px',color:'#7fff7f',align:'center',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    this.time.delayedCall(2500,()=>{
       sub.destroy();
       this.stats.round++;
-      this.roundBanner();
       this.resetRoundInnocents();
-      this.roundActive=true;
-      this.spawnTimer=500;
+      // open shop between rounds
+      this.scene.pause(); this.scene.pause('UI');
+      this.scene.launch('Shop',{game:this});
     });
+  }
+  afterShop(){
+    // called by ShopScene on continue
+    this.roundScale=getRoundScale(this.stats.round);
+    this.roundSpawnTotal=10+(this.stats.round-1)*3;
+    this.roundSpawned=0; this.roundEscaped=0;
+    // apply per-round start effects
+    this.stats.shield=this.stats.startShield;
+    this.roundBanner();
+    this.scene.resume();
+    this.roundActive=true;
+    this.spawnTimer=500;
+    this.ui && this.ui.refresh();
   }
   updateCrosshair(){
     let color=0xffffff;
@@ -1765,15 +1813,21 @@ class UIScene extends Phaser.Scene {
     const now=g.time.now;
     const active=[];
     if(g.stats.slowUntil>now) active.push({k:'⏱️',label:'LENTO',until:g.stats.slowUntil,max:6000,color:'#40c0ff'});
+    if(g.stats.freezeUntil>now) active.push({k:'❄️',label:'CONGELADO',until:g.stats.freezeUntil,max:4000,color:'#88ddff'});
     if(g.stats.berserkUntil>now) active.push({k:'💢',label:'FÚRIA',until:g.stats.berserkUntil,max:8000,color:'#ff4040'});
-    // rebuild only when count changes (cheap)
-    if(active.length!==this.buffSlots.length){
+    if(g.stats.doubleUntil>now) active.push({k:'✨',label:'2X PTS',until:g.stats.doubleUntil,max:10000,color:'#ffcc44'});
+    if(g.stats.radarUntil>now) active.push({k:'📡',label:'RADAR',until:g.stats.radarUntil,max:6000,color:'#40cc66'});
+    if(g.stats.lifestealShots>0) active.push({k:'🩸',label:'VAMPIRO x'+g.stats.lifestealShots,until:Infinity,max:1,color:'#cc4040',count:g.stats.lifestealShots});
+    // rebuild only when the set of labels changes (cheap)
+    const sig=active.map(a=>a.k+a.label).join('|');
+    if(sig!==this._buffSig){
+      this._buffSig=sig;
       this.buffSlots.forEach(s=>s.txt.destroy());
       this.buffSlots=[];
       active.forEach((a,i)=>{
         const txt=this.add.text(0,i*22,a.k+' '+a.label,{fontSize:'14px',color:'#fff',backgroundColor:'rgba(0,0,0,0.55)',padding:{x:4,y:2}}).setOrigin(0,0.5);
         this.buffPanel.add(txt);
-        this.buffSlots.push({txt,max:a.until-a.max,until:a.until,color:a.color});
+        this.buffSlots.push({txt,max:a.until-a.max,until:a.until,color:a.color,count:a.count});
       });
     }
     // refresh timers + color blink near expiry
@@ -1794,7 +1848,7 @@ class UIScene extends Phaser.Scene {
     this.scoreTxt.setText(s.score);
     this.comboTxt.setText('x'+s.combo);
     this.comboTxt.setColor(s.combo>1?'#ff8030':'#ffffff');
-    this.ammoTxt.setText('AMMO '+s.ammo+' / '+CLIP_SIZE);
+    this.ammoTxt.setText('AMMO '+s.ammo+' / '+s.clipSize);
     this.reloadTxt.setVisible(s.reloading);
     this.roundTxt.setText('ROUND '+s.round);
     this.continueTxt.setText('CON x'+s.continues);
@@ -1851,6 +1905,98 @@ class GameOverScene extends Phaser.Scene {
 }
 
 /* ============================================================
+   ShopScene — between-round upgrades
+   ============================================================ */
+const SHOP_UPGRADES = [
+  { id:'maxhp',   icon:'❤️', name:'Vida Máxima +20',  desc:'HP máximo sobe 20 (cap 200)',   baseCost:120, scale:1.6, max:5 },
+  { id:'clip',    icon:'🔫', name:'Pente +5',         desc:'Capacidade do pente +5',       baseCost:100, scale:1.7, max:6 },
+  { id:'reload',  icon:'⏱️', name:'Recarga -150ms',   desc:'Recarrega 150ms mais rápido',  baseCost:90,  scale:1.7, max:3 },
+  { id:'dropch',  icon:'🎲', name:'Drop +5%',         desc:'+5% chance de itens em kills', baseCost:80,  scale:1.6, max:5 },
+  { id:'shield',  icon:'🛡️', name:'Escudo inicial +1',desc:'Começa rounds com +1 escudo',  baseCost:110, scale:1.7, max:4 },
+  { id:'lifesteal',icon:'🩸',name:'Vampiro +2 tiros',  desc:'+2 tiros de cura por lifesteal',baseCost:140, scale:1.7, max:4 },
+];
+class ShopScene extends Phaser.Scene {
+  constructor(){ super('Shop'); }
+  init(data){ this.gameScene=data.game; this.stats=this.gameScene.stats; }
+  create(){
+    const W=BASE_W, H=BASE_H;
+    this.add.rectangle(W/2,H/2,W,H,0x000000,0.78).setDepth(150);
+    // title
+    this.add.text(W/2,40,'LOJA — ROUND '+this.stats.round,{fontSize:'34px',color:'#ffcc44',fontStyle:'bold'}).setOrigin(0.5).setDepth(151);
+    this.add.text(W/2,76,'Moedas: '+this.stats.coins,{fontSize:'22px',color:'#7fff7f',fontStyle:'bold'}).setOrigin(0.5).setDepth(151);
+    this.selected=null;
+    // render 3 random upgrade cards
+    const available=SHOP_UPGRADES.filter(u=>{
+      const lvl=this.stats.upgrades[u.id]||0;
+      return lvl<u.max;
+    });
+    // pick 3 distinct (or all if fewer)
+    const picks=[]; const pool=available.slice();
+    while(picks.length<3 && pool.length>0){
+      picks.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+    }
+    this.cards=[];
+    const cardW=230, cardH=260, spacing=20;
+    const totalW=picks.length*cardW+(picks.length-1)*spacing;
+    const startX=W/2-totalW/2+cardW/2;
+    picks.forEach((u,i)=>{
+      const cx=startX+i*(cardW+spacing);
+      const cy=H/2+10;
+      const level=this.stats.upgrades[u.id]||0;
+      const cost=Math.round(u.baseCost*Math.pow(u.scale,level));
+      const affordable=this.stats.coins>=cost;
+      const card=this.add.container(cx,cy).setDepth(151);
+      const bg=this.add.rectangle(0,0,cardW,cardH,affordable?0x1a2840:0x2a1a1a,0.95).setStrokeStyle(2,affordable?0x40c0ff:0x664444);
+      card.add(bg);
+      card.add(this.add.text(0,-95,u.icon,{fontSize:'36px'}).setOrigin(0.5));
+      card.add(this.add.text(0,-50,u.name,{fontSize:'16px',color:'#fff',fontStyle:'bold',align:'center',wordWrap:{width:cardW-20}}).setOrigin(0.5));
+      card.add(this.add.text(0,0,u.desc,{fontSize:'12px',color:'#aabbcc',align:'center',wordWrap:{width:cardW-20}}).setOrigin(0.5));
+      card.add(this.add.text(0,40,'Nível: '+level+'/'+u.max,{fontSize:'13px',color:'#8899aa'}).setOrigin(0.5));
+      card.add(this.add.text(0,70,'Custo: '+cost,{fontSize:'18px',color:affordable?'#7fff7f':'#ff6060',fontStyle:'bold'}).setOrigin(0.5));
+      // clickable
+      bg.setInteractive({useHandCursor:true});
+      bg.on('pointerover',()=>{ if(affordable) bg.setFillStyle(0x243660); });
+      bg.on('pointerout',()=>{ if(affordable) bg.setFillStyle(0x1a2840); });
+      bg.on('pointerdown',()=>{
+        if(this.stats.coins<cost) return;
+        this.buyUpgrade(u,cost);
+      });
+      this.cards.push({card,bg,upgrade:u,cost,affordable});
+    });
+    // continue button
+    const cbtn=this.add.rectangle(W/2,H-60,260,50,0x222a33).setStrokeStyle(2,0xffffff).setInteractive({useHandCursor:true}).setDepth(151);
+    const ctxt=this.add.text(W/2,H-60,'CONTINUAR ▶',{fontSize:'22px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(151);
+    cbtn.on('pointerover',()=>cbtn.setFillStyle(0x33404d));
+    cbtn.on('pointerout',()=>cbtn.setFillStyle(0x222a33));
+    cbtn.on('pointerdown',()=>this.continueGame());
+    this.input.keyboard.on('keydown-SPACE',()=>this.continueGame());
+    this.input.keyboard.on('keydown-ENTER',()=>this.continueGame());
+  }
+  buyUpgrade(u,cost){
+    this.stats.coins-=cost;
+    this.stats.upgrades[u.id]=(this.stats.upgrades[u.id]||0)+1;
+    // apply permanent effects
+    const lvl=this.stats.upgrades[u.id];
+    if(u.id==='maxhp'){
+      this.stats.maxHp=Math.min(200,100+lvl*20);
+      this.stats.hp=this.stats.maxHp;
+    } else if(u.id==='clip'){
+      this.stats.clipSize=CLIP_SIZE+lvl*5;
+    } else if(u.id==='shield'){
+      this.stats.startShield=lvl;
+    } else if(u.id==='lifesteal'){
+      this.stats.lifestealAdd=lvl*2;
+    }
+    // refresh card visuals + coin count + restart scene so costs update
+    this.scene.restart({game:this.gameScene});
+  }
+  continueGame(){
+    this.scene.stop();
+    this.gameScene.afterShop();
+  }
+}
+
+/* ============================================================
    Phaser config
    ============================================================ */
 const config = {
@@ -1859,7 +2005,7 @@ const config = {
   width:BASE_W, height:BASE_H,
   scale:{ mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH },
   backgroundColor:'#05060a',
-  scene:[BootScene,MenuScene,GameScene,UIScene,PauseScene,GameOverScene],
+  scene:[BootScene,MenuScene,GameScene,UIScene,PauseScene,ShopScene,GameOverScene],
   physics:{ default:'arcade' },
 };
 window.addEventListener('load',()=>{ window.game=new Phaser.Game(config); });
