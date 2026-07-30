@@ -45,21 +45,21 @@ function getRoundScale(r){
   const clamp=v=>Math.max(0,v);
   const t=Math.min(1,(r-1)/(MAX_ROUNDS-1)); // 0 -> 1 across campaign
   return {
-    hpMult: 1+t*1.5,          // hp up to 2.5x
-    visMult: 1-t*0.55,        // visibility shorter
-    speedMult: 1+t*0.8,       // suicide runs faster
-    ghostBlink: 1400-t*600,   // ghost blinks faster (harder to hit)
-    spawnInterval: Math.max(350,1100-r*80), // already existed, tightened
-    maxConcurrent: Math.min(7,2+Math.floor(r/1.5)),
+    hpMult: 1+t*0.6,          // hp up to 1.6x
+    visMult: 1-t*0.25,        // visibility slightly shorter
+    speedMult: 1+t*0.3,       // suicide runs a bit faster
+    ghostBlink: 1400-t*300,   // ghost blinks a bit faster
+    spawnInterval: Math.max(550,1200-r*55), // gentler spawn cadence
+    maxConcurrent: Math.min(4,2+Math.floor(r/3)), // hard cap at 4 enemies on screen
     weights: {
-      soldier: clamp(1.0-t*0.6),
-      sniper:  clamp(t<0.15?0:(t-0.15)*1.4),
-      tank:    clamp(t<0.25?0:(t-0.25)*1.2),
-      suicide: clamp(t<0.35?0:(t-0.35)*1.3),
-      ghost:   clamp(t<0.45?0:(t-0.45)*1.1),
+      soldier: clamp(1.0-t*0.4),
+      sniper:  clamp(t<0.25?0:(t-0.25)*1.0),
+      tank:    clamp(t<0.50?0:(t-0.50)*0.9),
+      suicide: clamp(t<0.65?0:(t-0.65)*0.9),
+      ghost:   clamp(t<0.80?0:(t-0.80)*0.7),
     },
-    innocentRate: 0.20+t*0.25, // more civilians clutter later rounds
-    innocentsCount: Math.max(1,Math.floor(r/2)+1),
+    innocentRate: 0.15+t*0.10, // fewer civilians
+    innocentsCount: Math.max(1,Math.floor(r/3)+1),
   };
 }
 
