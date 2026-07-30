@@ -24,34 +24,67 @@ Requer conexão com internet apenas para carregar o Phaser 3 via CDN:
 
 ## 🕹️ Objetivo
 
-Sobreviva a **10 rodadas** (`MAX_ROUNDS`). Cada rodada cresce em dificuldade: mais inimigos, spawn mais rápido, mais inimigos simultâneos. Alcance a maior pontuação possível — combo multiplica os pontos.
+Sobreviva o máximo possível em um modo **endless** de rodadas infinitas (`MAX_ROUNDS = 999`). Cada rodada cresce em dificuldade: mais inimigos, spawn mais rápido, HP maior e novos tipos de monstros aparecem. Alcance a maior pontuação possível — combo multiplica os pontos, e a cada **10.000 pontos** você ganha um **continue**.
+
+> ⚠️ **Cuidado com os Aldeões** — atirar em civis zera o combo, penaliza score/HP e, após 5 abatidos, é game over.
 
 ### Inimigos (`ENEMY_DEFS`)
 
 | Tipo | HP | Visibilidade | Dano | Pontos | Ícone |
 |------|----|--------------|------|--------|-------|
-| Soldier | 1 | 3000–4000ms | 10 | 100 | S |
-| Sniper | 1 | 1500–2000ms | 25 | 250 | ! |
-| Tank | 2 | 4000ms | 15 | 400 | T |
-| Suicide | 1 | 2000ms | 40 | 300 | >> |
-| Ghost | 1 | 4500–6000ms | 20 | 500 | ~ |
-| **Innocent** | 1 | 3000–4000ms | 0 | 0 | CIV |
+| Morto-Vivo | 1 | 3000–4000ms | 10 | 100 | Z |
+| Cuspidor | 1 | 1500–2000ms | 25 | 250 | ! |
+| Brutamontes | 2 | 4000ms | 15 | 400 | B |
+| Bombardeiro | 1 | 2000ms | 40 | 300 | >> |
+| Espectro | 1 | 5500–7500ms | 20 | 500 | ~ |
+| **Aldeão** | 1 | 3000–4000ms | 0 | 0 | CIV |
 
-Atirar em civil (`innocent`) zera o combo e penaliza. Cada rodada inclui pelo menos 1 civil; a quantidade cresce com a rodada.
+**Comportamentos especiais:**
+- **Brutamontes** — aguenta 2 tiros; exibe barra de HP.
+- **Bombardeiro** — avança em linha reta e explode ao chegar no centro, causando dano instantâneo.
+- **Espectro** — pisca entre material e etéreo (só pode ser atingido quando opaco).
+- **Aldeão** — inocente. Não atira, mas aparece com as mãos levantadas. Abater zera combo, -50 pts, -15 HP.
 
-### Itens (`ITEM_DEFS`) — coletados ao clicar, somem em 5000ms
+### Itens (`ITEM_DEFS`) — coletados ao clicar, com tempo de desaparecimento por tier
 
-| Item | Efeito | Ícone |
-|------|--------|-------|
-| med | Cura HP | 💊 |
-| ammo | Pente cheio (30) | 🔫 |
-| shield | Bloqueia 2 acertos | 🛡️ |
-| slow | Câmera lenta 5s | ⏱️ |
-| nade | Limpa todos inimigos na tela | 💥 |
+Itens possuem **raridade** (Common / Rare / Epic), indicada por aura colorida. Itens mais raros duram mais tempo na tela antes de sumir.
+
+| Item | Efeito | Tier | Ícone |
+|------|--------|------|-------|
+| med | Cura +20 HP | Common | 💊 |
+| ammo | Pente cheio | Common | 🔫 |
+| shield | Bloqueia 3 acertos | Rare | 🛡️ |
+| slow | Câmera lenta 6s | Rare | ⏱️ |
+| freeze | Congela todos inimigos 4s | Rare | ❄️ |
+| lifesteal | Próximos 6 tiros curam +5 HP | Rare | 🩸 |
+| radar | Destaca inimigos com setas 6s | Rare | 📡 |
+| nade | Limpa todos inimigos na tela | Epic | 💥 |
+| berserker | Tiros matam instantaneamente 8s | Epic | 💢 |
+| doublepts | Pontuação 2× 10s | Epic | ✨ |
 
 ### Combos
 
-Aciertos consecutivos sem errar aumentam o multiplicador: ×1 → ×2 (3 hits) → ×3 (5 hits) → ×4 (8 hits). Erar (miss) ou levar dano reseta.
+Acertos consecutivos sem errar aumentam o multiplicador: ×1 → ×2 (3 hits) → ×3 (5 hits) → ×4 (8 hits). Errar (miss) ou levar dano reseta.
+
+### Continues & Moedas
+
+- A cada **10.000 pontos** ganha-se **1 continue** automaticamente.
+- Inimigos dropam **moedas** ao morrer (base + bônus por tipo forte).
+- Complete uma rodada para ganhar moedas bônus.
+- Continues também podem ser usados quando HP chega a 0 — o jogo restaure HP/munição e continua.
+
+## 🛒 Loja entre Rodadas
+
+Após completar cada rodada, uma **loja** aparece com 3 upgrades aleatórios disponíveis para compra com moedas:
+
+| Upgrade | Efeito | Máx |
+|---------|--------|-----|
+| ❤️ Vida Máxima | +20 HP máximo (cap 200) | 5 |
+| 🔫 Pente | +5 balas por pente | 6 |
+| ⏱️ Recarga Rápida | -150ms no tempo de recarga | 3 |
+| 🎲 Chance de Drop | +5% chance de item em kills | 5 |
+| 🛡️ Escudo Inicial | Começa rounds com +1 escudo | 4 |
+| 🩸 Vampiro | +2 tiros de cura por lifesteal | 4 |
 
 ## 🧱 Estrutura do código
 
@@ -60,24 +93,29 @@ Arquivo único `index.html`. Tudo inline. Cenas (Phaser Scenes):
 ```
 BootScene     → gera texturas proceduralmente (sem assets externos), inicia
 MenuScene     → menu inicial
-GameScene     → loop principal: spawn, tiro, dano, rodadas, itens
-UIScene       → HUD (HP, munição, score, combo, rodada, escudo)
+GameScene     → loop principal: spawn, tiro, dano, rodadas, itens, cenário
+UIScene       → HUD (HP, munição, score, combo, rodada, escudo, buffs ativos)
 PauseScene    → overlay de pausa
+ShopScene     → loja de upgrades entre rounds
 GameOverScene → tela final / vitória
 ```
 
 ### Constantes de balanceamento (topo do script)
 
 ```js
-const BASE_W = 1280, BASE_H = 720;   // resolução base (escalada ao viewport)
-const MAX_ROUNDS = 10;               // rodadas para vitória
+const BASE_W = 1024, BASE_H = 576; // resolução base (escalada ao viewport)
+const MAX_ROUNDS = 999;              // modo endless — sobreviva o máximo possível
 const CLIP_SIZE = 30;                // tiros por pente
-const RELOAD_MS = 1000;              // tempo de recarga
+const RELOAD_MS = 1000;              // tempo de recarga base
 ```
 
 ### Áudio
 
-Engine sintético com **Web Audio API** (sem arquivos de som): `Audio.shot()`, `hit()`, `kill()`, `hurt()`, `innocent()`, `item()`, `reload()`, além de drone ambiente e efeito de câmera lenta. Inicia no primeiro clique do menu (política de autoplay do navegador).
+Engine sintética com **Web Audio API** (sem arquivos de som): `Audio.shot()`, `hit()`, `kill()`, `hurt()`, `innocent()`, `item()`, `reload()`, além de drone ambiente, efeito de câmera lenta e trovões. Inicia no primeiro clique do menu (política de autoplay do navegador).
+
+### Cenário procedural
+
+O fundo é gerado proceduralmente a cada partida com: gradiente de céu noturno, estrelas piscantes, lua com halo, nuvens de nebulosa, prédios em camadas de parallax, janelas piscantes, fios, postes de luz com flicker, árvores mortas, chuva em duas camadas, poças reflexivas, vapor de bueiro, holofotes sweep e relâmpagos aleatórios. O mouse desloca levemente as camadas (parallax).
 
 ## 🛠️ Tech
 
