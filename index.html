@@ -30,7 +30,7 @@ const ENEMY_DEFS = {
   sniper:  { hp:1, vis:[1500,2000], dmg:25,  pts:250, color:0x6b6b6b, icon:'!' },
   tank:    { hp:2, vis:[4000,4000], dmg:15,  pts:400, color:0x8a5a2a, icon:'T' },
   suicide: { hp:1, vis:[2000,2000], dmg:40,  pts:300, color:0xd97a1a, icon:'>>' },
-  ghost:   { hp:1, vis:[4500,6000], dmg:20,  pts:500, color:0x9a5ad9, icon:'~' },
+  ghost:   { hp:1, vis:[5500,7500], dmg:20,  pts:500, color:0x9a5ad9, icon:'~' },
   innocent:{ hp:1, vis:[3000,4000], dmg:0,   pts:0,   color:0x2a7ad9, icon:'CIV' },
 };
 const ITEM_DEFS = {
@@ -40,6 +40,28 @@ const ITEM_DEFS = {
   slow: { icon:'⏱️', life:5000 },
   nade: { icon:'💥', life:5000 },
 };
+/* round difficulty scale: weights per type, hp multiplier, visibility multiplier, speed multiplier */
+function getRoundScale(r){
+  const clamp=v=>Math.max(0,v);
+  const t=Math.min(1,(r-1)/(MAX_ROUNDS-1)); // 0 -> 1 across campaign
+  return {
+    hpMult: 1+t*1.5,          // hp up to 2.5x
+    visMult: 1-t*0.55,        // visibility shorter
+    speedMult: 1+t*0.8,       // suicide runs faster
+    ghostBlink: 1400-t*600,   // ghost blinks faster (harder to hit)
+    spawnInterval: Math.max(350,1100-r*80), // already existed, tightened
+    maxConcurrent: Math.min(7,2+Math.floor(r/1.5)),
+    weights: {
+      soldier: clamp(1.0-t*0.6),
+      sniper:  clamp(t<0.15?0:(t-0.15)*1.4),
+      tank:    clamp(t<0.25?0:(t-0.25)*1.2),
+      suicide: clamp(t<0.35?0:(t-0.35)*1.3),
+      ghost:   clamp(t<0.45?0:(t-0.45)*1.1),
+    },
+    innocentRate: 0.20+t*0.25, // more civilians clutter later rounds
+    innocentsCount: Math.max(1,Math.floor(r/2)+1),
+  };
+}
 
 /* ---------- Audio engine (Web Audio API, synthetic) ---------- */
 const Audio = {
@@ -314,7 +336,7 @@ class MenuScene extends Phaser.Scene {
     this.add.image(BASE_W/2,BASE_H/2,'bg').setDisplaySize(BASE_W,BASE_H);
     const t=this.add.text(BASE_W/2,180,'GALLERY SHOOTER',{fontFamily:'Courier New',fontSize:'72px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5);
     t.setShadow(0,0,'#600000',4,true);
-    this.add.text(BASE_W/2,260,'Aponte. Atire. Não erre o inocente.',{fontSize:'22px',color:'#ccd'}).setOrigin(0.5);
+    this.add.text(BASE_W/2,260,'Aponte. Atire. Acerte os inimigos.',{fontSize:'22px',color:'#ccd'}).setOrigin(0.5);
 
     const btn=this.add.rectangle(BASE_W/2,380,320,70,0x222a33).setStrokeStyle(3,0xff4040);
     const btxt=this.add.text(BASE_W/2,380,'INICIAR JOGO',{fontSize:'30px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
@@ -325,7 +347,7 @@ class MenuScene extends Phaser.Scene {
 
     const help=[
       '🎯  Clique esquerdo: atirar',
-      '🔁  R: recarregar  (12 balas / pente)',
+      '🔁  R: recarregar  ('+CLIP_SIZE+' balas / pente)',
       '🖱️  Clique em itens para coletar',
       '⏸️  ESC / P: pausar',
       '',
@@ -342,8 +364,10 @@ class MenuScene extends Phaser.Scene {
 class Enemy extends Phaser.GameObjects.Container {
   constructor(scene,x,y,type){
     super(scene,x,y); scene.add.existing(this);
-    this.type=type; this.def=ENEMY_DEFS[type]; this.hp=this.def.hp;
-    this.visibleTime=Phaser.Math.Between(this.def.vis[0],this.def.vis[1]);
+    this.type=type; this.def=ENEMY_DEFS[type];
+    const scale=scene.roundScale||getRoundScale(1);
+    this.hp=Math.ceil(this.def.hp*scale.hpMult); this.maxHp=this.hp;
+    this.visibleTime=Phaser.Math.Between(this.def.vis[0],this.def.vis[1])*scale.visMult;
     this.born=scene.time.now; this.alive=true; this.killed=false; this.scored=false;
     this.slowFactor=1;
     const tex='enemy_'+(type==='innocent'?'innocent':type);
@@ -405,10 +429,10 @@ class Tank    extends Enemy {
     this.bar=s.add.rectangle(0,-this.body.height/2-12,70,6,0xff4040).setOrigin(0.5);
     this.add([this.barBg,this.bar]);
   }
-  takeHit(s){ const r=super.takeHit(s); if(this.bar){ this.bar.scaleX=Math.max(0,this.hp/ENEMY_DEFS.tank.hp);} return r; }
+  takeHit(s){ const r=super.takeHit(s); if(this.bar){ this.bar.scaleX=Math.max(0,this.hp/this.maxHp);} return r; }
 }
 class Suicide extends Enemy {
-  constructor(s,x,y){ super(s,x,y,'suicide'); this.targetY=BASE_H/2; this.speed=Phaser.Math.Between(18,30); }
+  constructor(s,x,y){ super(s,x,y,'suicide'); this.targetY=BASE_H/2; const sc=s.roundScale||getRoundScale(1); this.speed=Phaser.Math.Between(18,30)*sc.speedMult; }
   preUpdate(t,d){
     if(!this.alive) return;
     if(this.y>this.targetY){ this.y-=this.speed*(d/1000)*this.slowFactor; }
@@ -419,11 +443,11 @@ class Suicide extends Enemy {
   explode(){ if(this.killed) return; this.killed=true; this.alive=false; this.scene.takeDamage(this.def.dmg); this.scene.spawnBlood(this.x,this.y); this.destroy(); }
 }
 class Ghost extends Enemy {
-  constructor(s,x,y){ super(s,x,y,'ghost'); this.blink=0; this.phasable=true; }
+  constructor(s,x,y){ super(s,x,y,'ghost'); this.blink=0; this.phasable=true; const sc=s.roundScale||getRoundScale(1); this.blinkDuration=sc.ghostBlink||1400; }
   preUpdate(t,d){
     if(!this.alive) return;
     this.blink+=d*this.slowFactor;
-    const phase=Math.floor(this.blink/700)%2===0;
+    const phase=Math.floor(this.blink/this.blinkDuration)%2===0;
     this.alpha=phase?1:0.15; this.phasable=phase;
     super.preUpdate();
   }
@@ -439,7 +463,7 @@ class PowerUp extends Phaser.GameObjects.Container {
     this.kind=kind; this.born=scene.time.now; this.life=ITEM_DEFS[kind].life;
     const bg=scene.add.image(0,0,'item_'+kind);
     const txt=scene.add.text(0,0,ITEM_DEFS[kind].icon,{fontSize:'28px'}).setOrigin(0.5);
-    this.add([bg,txt]); this.setSize(48,48);
+    this.add([bg,txt]); this.setSize(48,48); this.setDepth(20);
     // collection handled by GameScene.tryShoot (cursor hidden, single handler avoids double-collect)
     scene.tweens.add({targets:this,scaleX:1.1,scaleY:1.1,duration:400,yoyo:true,repeat:-1});
   }
@@ -464,6 +488,7 @@ class GameScene extends Phaser.Scene {
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
       shield:0, slowUntil:0 };
     this.enemies=[]; this.activeItem=null; this.paused=false; this.over=false;
+    this.roundScale=getRoundScale(1);
 
     // damage vignette
     this.vignette=this.add.rectangle(BASE_W/2,BASE_H/2,BASE_W,BASE_H,0xff0000,0).setDepth(90);
@@ -499,11 +524,13 @@ class GameScene extends Phaser.Scene {
   roundBanner(){
     const b=this.add.text(BASE_W/2,BASE_H/2-100,'ROUND '+this.stats.round,{fontSize:'64px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(95).setAlpha(0);
     this.tweens.add({targets:b,alpha:1,duration:400,hold:900,yoyo:true,onComplete:()=>b.destroy()});
+    this.roundScale=getRoundScale(this.stats.round);
     this.roundSpawnTotal=10+(this.stats.round-1)*3;
-    this.roundSpawned=0; this.roundEscaped=0; this.spawnInterval=Math.max(450,1100-this.stats.round*70);
-    this.maxConcurrent=Math.min(6,2+Math.floor(this.stats.round/2));
+    this.roundSpawned=0; this.roundEscaped=0;
+    this.spawnInterval=this.roundScale.spawnInterval;
+    this.maxConcurrent=this.roundScale.maxConcurrent;
     this.roundInnocentsSpawned=0;
-    this.roundInnocentsCount=Math.max(1,Math.floor(this.stats.round/2)+1);
+    this.roundInnocentsCount=this.roundScale.innocentsCount;
   }
 
   /* ---------- scenery (visual only, no mechanics) ---------- */
@@ -515,9 +542,6 @@ class GameScene extends Phaser.Scene {
     for(let y=0;y<H;y++){ const t=y/H; const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x0a0e1a,0x1a2238,t);
       sky.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); sky.fillRect(0,y,W,1); }
     for(let i=0;i<50;i++){ sky.fillStyle(0xffffff,0.3+rng()*0.4); sky.fillCircle(rng()*W,rng()*H*0.33,1); }
-    const mcx=W-120,mcy=110;
-    sky.fillStyle(0xE8E8D0,0.08); sky.fillCircle(mcx,mcy,60);
-    sky.fillStyle(0xE8E8D0,1); sky.fillCircle(mcx,mcy,35);
     sky.fillStyle(0x11161e,1); sky.fillRect(0,groundY,W,H-groundY);
     sky.fillStyle(0x1a2230,1); sky.fillRect(0,groundY,W,4);
 
@@ -636,7 +660,7 @@ class GameScene extends Phaser.Scene {
       if(e.flashUntil&&now<e.flashUntil) return;
       const t=Phaser.Math.Clamp((e.y-topY)/(botY-topY),0,1);
       const c=Phaser.Display.Color.Interpolate.ColorWithColor(
-        Phaser.Display.Color.ValueToColor(0x8899AA),
+        Phaser.Display.Color.ValueToColor(0xC0D0E0),
         Phaser.Display.Color.ValueToColor(0xFFFFFF),
         1, t
       );
@@ -666,26 +690,26 @@ class GameScene extends Phaser.Scene {
   }
 
   /* ---------- spawning ---------- */
-  allowedTypes(){
-    const r=this.stats.round; const t=['soldier'];
-    if(r>=2) t.push('sniper');
-    if(r>=3) t.push('tank');
-    if(r>=4) t.push('suicide');
-    if(r>=5) t.push('ghost');
-    return t;
+  pickEnemyType(){
+    const w=this.roundScale.weights;
+    const entries=Object.entries(w).filter(([,v])=>v>0);
+    if(!entries.length) return 'soldier';
+    const total=entries.reduce((a,[,v])=>a+v,0);
+    let r=Math.random()*total;
+    for(const [k,v] of entries){ r-=v; if(r<=0) return k; }
+    return entries[entries.length-1][0];
   }
   spawnEnemy(){
     if(this.enemies.filter(e=>e.alive).length>=this.maxConcurrent) return;
-    const types=this.allowedTypes();
-    let type=Phaser.Utils.Array.GetRandom(types);
-    // innocents: at least 1 per round (count grows with round), mixed in randomly
-    if(this.roundInnocentsSpawned<this.roundInnocentsCount && Phaser.Math.Between(1,100)<=35){
+    let type=this.pickEnemyType();
+    // innocents mixed in
+    if(this.roundInnocentsSpawned<this.roundInnocentsCount && Math.random()<=this.roundScale.innocentRate){
       type='innocent'; this.roundInnocentsSpawned++;
     }
-    // max 1 suicide alive at a time (two at once is unfair)
+    // max 1 suicide alive at a time
     if(type==='suicide' && this.enemies.some(e=>e.alive && e.type==='suicide')){
-      const opts=types.filter(t=>t!=='suicide');
-      type=opts.length?Phaser.Utils.Array.GetRandom(opts):type;
+      const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='suicide' && v>0);
+      type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'soldier';
     }
     const x=Phaser.Math.Between(120,BASE_W-120);
     const y=(type==='suicide')?Phaser.Math.Between(BASE_H*0.66,BASE_H*0.72):Phaser.Math.Between(BASE_H*0.45,BASE_H*0.66);
@@ -700,7 +724,7 @@ class GameScene extends Phaser.Scene {
     this.enemies.push(e);
     this.roundSpawned++;
   }
-  resetRoundInnocents(){ this.roundInnocentsSpawned=0; this.roundInnocentsCount=Math.max(1,Math.floor(this.stats.round/2)+1); }
+  resetRoundInnocents(){ this.roundInnocentsSpawned=0; this.roundInnocentsCount=this.roundScale.innocentsCount; }
 
   /* ---------- shooting ---------- */
   tryShoot(){
@@ -889,8 +913,8 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(3000,()=>{
       sub.destroy();
       this.stats.round++;
-      this.resetRoundInnocents();
       this.roundBanner();
+      this.resetRoundInnocents();
       this.roundActive=true;
       this.spawnTimer=500;
     });
