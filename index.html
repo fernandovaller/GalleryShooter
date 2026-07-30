@@ -838,6 +838,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({targets:e,alpha:0,angle:90,duration:300,onComplete:()=>e.destroy()});
     this.showInnocentWarning();
     this.flashDamage();
+    if(this.stats.innocentsKilled>=5){ this.gameOver(); return; }
     if(this.stats.hp<=0) this.useContinue();
     this.ui.refresh();
   }
@@ -849,7 +850,7 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(e){
     this.stats.kills++;
     this.stats.score+=e.def.pts*this.stats.combo;
-    const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/10000);
+    const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/50000);
     if(earned>0){
       this.stats.continues+=earned;
       this.stats.lastContinueScore+=earned*10000;
@@ -859,8 +860,8 @@ class GameScene extends Phaser.Scene {
     this.ui.refresh();
   }
   showContinueEarnedBanner(earned){
-    const b=this.add.text(BASE_W/2,BASE_H/2,'CONTINUE GANHO!',{fontSize:'56px',color:'#7fff7f',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
-    const sub=this.add.text(BASE_W/2,BASE_H/2+50,'+'+earned+'  |  Total: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
+    const b=this.add.text(BASE_W/2,BASE_H*0.15,'CONTINUE GANHO!',{fontSize:'56px',color:'#7fff7f',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    const sub=this.add.text(BASE_W/2,BASE_H*0.15+50,'+'+earned+'  |  Total: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
     this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1800,onComplete:()=>{ b.destroy(); sub.destroy(); }});
     Audio.item();
   }
@@ -923,8 +924,8 @@ class GameScene extends Phaser.Scene {
     }
   }
   showContinueBanner(){
-    const b=this.add.text(BASE_W/2,BASE_H/2,'CONTINUE USADO',{fontSize:'56px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
-    const sub=this.add.text(BASE_W/2,BASE_H/2+50,'Continues restantes: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
+    const b=this.add.text(BASE_W/2,BASE_H*0.15,'CONTINUE USADO',{fontSize:'56px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    const sub=this.add.text(BASE_W/2,BASE_H*0.15+50,'Continues restantes: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
     this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1800,onComplete:()=>{ b.destroy(); sub.destroy(); }});
     Audio.hurt();
     this.cameras.main.shake(300,0.015);
