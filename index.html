@@ -739,8 +739,9 @@ class Enemy extends Phaser.GameObjects.Container {
     const tex='enemy_'+(type==='villager'?'villager':type);
     const body=this.scene.add.image(0,0,tex);
     this.add(body); this.body=body;
-    const icon=this.scene.add.text(0,-body.height*0.5-6,this.def.icon,{fontSize:'12px',color:'#fff',fontStyle:'bold',backgroundColor:'#000',padding:{x:3,y:1}}).setOrigin(0.5);
-    this.add(icon);
+    // icon removed for cleaner look
+    // const icon=this.scene.add.text(0,-body.height*0.5-6,this.def.icon,{fontSize:'12px',color:'#fff',fontStyle:'bold',backgroundColor:'#000',padding:{x:3,y:1}}).setOrigin(0.5);
+    // this.add(icon);
     this.setSize(body.width,body.height);
     this.setDepth(10);
     this.silUntil=0; this.flashUntil=0;
