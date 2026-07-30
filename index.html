@@ -486,7 +486,7 @@ class GameScene extends Phaser.Scene {
     // stats
     this.stats={ hp:100, ammo:CLIP_SIZE, reloading:false, score:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
-      shield:0, slowUntil:0 };
+      shield:0, slowUntil:0, continues:3 };
     this.enemies=[]; this.activeItem=null; this.paused=false; this.over=false;
     this.roundScale=getRoundScale(1);
 
@@ -787,7 +787,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({targets:e,alpha:0,angle:90,duration:300,onComplete:()=>e.destroy()});
     this.showInnocentWarning();
     this.flashDamage();
-    if(this.stats.hp<=0) this.gameOver();
+    if(this.stats.hp<=0) this.useContinue();
     this.ui.refresh();
   }
   showInnocentWarning(){
@@ -843,8 +843,27 @@ class GameScene extends Phaser.Scene {
     this.flashDamage();
     this.stats.combo=1; this.stats.comboCount=0;
     if(dmg>=20) this.cameras.main.shake(150,0.008);
-    if(this.stats.hp<=0) this.gameOver();
+    if(this.stats.hp<=0) this.useContinue();
     this.ui.refresh();
+  }
+  useContinue(){
+    if(this.stats.continues>0){
+      this.stats.continues--;
+      this.stats.hp=100;
+      this.stats.ammo=CLIP_SIZE;
+      this.stats.reloading=false;
+      this.stats.shield=0;
+      this.showContinueBanner();
+    } else {
+      this.gameOver();
+    }
+  }
+  showContinueBanner(){
+    const b=this.add.text(BASE_W/2,BASE_H/2,'CONTINUE USADO',{fontSize:'56px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    const sub=this.add.text(BASE_W/2,BASE_H/2+50,'Continues restantes: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
+    this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1800,onComplete:()=>{ b.destroy(); sub.destroy(); }});
+    Audio.hurt();
+    this.cameras.main.shake(300,0.015);
   }
   flashDamage(){
     this.tweens.add({targets:this.vignette,fillAlpha:0.5,duration:120,yoyo:true,onComplete:()=>this.vignette.setFillStyle(0xff0000,0)});
@@ -973,6 +992,8 @@ class UIScene extends Phaser.Scene {
 
     // round
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
+    // continues
+    this.continueTxt=this.add.text(BASE_W/2,52,'♥ x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
   }
   refresh(){
     const s=this.s;
@@ -986,6 +1007,7 @@ class UIScene extends Phaser.Scene {
     this.ammoTxt.setText('🔫 '+s.ammo+' / '+CLIP_SIZE);
     this.reloadTxt.setVisible(s.reloading);
     this.roundTxt.setText('ROUND '+s.round);
+    this.continueTxt.setText('♥ x'+s.continues);
   }
 }
 
@@ -1026,6 +1048,7 @@ class GameOverScene extends Phaser.Scene {
       'Inimigos eliminados: '+this.stats.kills,
       'Inocentes mortos: '+this.stats.innocentsKilled,
       'Precisão: '+acc+'%',
+      'Continues restantes: '+this.stats.continues,
     ];
     this.add.text(BASE_W/2,300,lines,{fontSize:'24px',color:'#fff',align:'center',lineSpacing:10}).setOrigin(0.5);
 
