@@ -26,12 +26,18 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 const CLIP_SIZE = 30;
 const RELOAD_MS = 1000;
 const ENEMY_DEFS = {
-  soldier: { hp:1, vis:[3000,4000], dmg:10,  pts:100, color:0x4b6b3a, icon:'S' },
-  sniper:  { hp:1, vis:[1500,2000], dmg:25,  pts:250, color:0x6b6b6b, icon:'!' },
-  tank:    { hp:2, vis:[4000,4000], dmg:15,  pts:400, color:0x8a5a2a, icon:'T' },
-  suicide: { hp:1, vis:[2000,2000], dmg:40,  pts:300, color:0xd97a1a, icon:'>>' },
-  ghost:   { hp:1, vis:[5500,7500], dmg:20,  pts:500, color:0x9a5ad9, icon:'~' },
-  innocent:{ hp:1, vis:[3000,4000], dmg:0,   pts:0,   color:0x2a7ad9, icon:'CIV' },
+  // undead — shuffling corpse, swipes at close range
+  undead:  { hp:1, vis:[3000,4000], dmg:10,  pts:100, color:0x5a7a4a, icon:'Z' },
+  // spitter — skeletal creature, loogies corrosive bile from afar
+  spitter: { hp:1, vis:[1500,2000], dmg:25,  pts:250, color:0x7a8a6a, icon:'!' },
+  // brute — hulking ogre, soaks two hits
+  brute:   { hp:2, vis:[4000,4000], dmg:15,  pts:400, color:0x6a4a2a, icon:'B' },
+  // bomber — bloated creature bursts when it reaches you
+  bomber:  { hp:1, vis:[2000,2000], dmg:40,  pts:300, color:0xd97a1a, icon:'>>' },
+  // wraith — phases in and out; only hittable while material
+  wraith:  { hp:1, vis:[5500,7500], dmg:20,  pts:500, color:0x9a5ad9, icon:'~' },
+  // villager — innocent townsperson DON'T SHOOT
+  villager:{ hp:1, vis:[3000,4000], dmg:0,   pts:0,   color:0x2a7ad9, icon:'CIV' },
 };
 const ITEM_DEFS = {
   med:  { icon:'💊', life:5000 },
@@ -47,18 +53,18 @@ function getRoundScale(r){
   return {
     hpMult: 1+t*0.6,          // hp up to 1.6x
     visMult: 1-t*0.25,        // visibility slightly shorter
-    speedMult: 1+t*0.3,       // suicide runs a bit faster
-    ghostBlink: 1400-t*300,   // ghost blinks a bit faster
+    speedMult: 1+t*0.3,       // bomber charges faster as rounds rise
+    ghostBlink: 1400-t*300,   // wraith blinks a bit faster
     spawnInterval: Math.max(550,1200-r*55), // gentler spawn cadence
-    maxConcurrent: Math.min(4,2+Math.floor(r/3)), // hard cap at 4 enemies on screen
+    maxConcurrent: Math.min(4,2+Math.floor(r/3)), // hard cap at 4 monsters on screen
     weights: {
-      soldier: clamp(1.0-t*0.4),
-      sniper:  clamp(t<0.25?0:(t-0.25)*1.0),
-      tank:    clamp(t<0.50?0:(t-0.50)*0.9),
-      suicide: clamp(t<0.65?0:(t-0.65)*0.9),
-      ghost:   clamp(t<0.80?0:(t-0.80)*0.7),
+      undead:  clamp(1.0-t*0.4),
+      spitter: clamp(t<0.25?0:(t-0.25)*1.0),
+      brute:   clamp(t<0.50?0:(t-0.50)*0.9),
+      bomber:  clamp(t<0.65?0:(t-0.65)*0.9),
+      wraith:  clamp(t<0.80?0:(t-0.80)*0.7),
     },
-    innocentRate: 0.15+t*0.10, // fewer civilians
+    innocentRate: 0.15+t*0.10, // villagers
     innocentsCount: Math.max(1,Math.floor(r/3)+1),
   };
 }
@@ -198,99 +204,128 @@ class BootScene extends Phaser.Scene {
     g.generateTexture('bg',BASE_W,BASE_H); g.destroy();
   }
   makeEnemyTextures(){
-    const skin=0xe8c9a0, dark=0x111111, steel=0x2a2f36;
+    const flesh=0xe8c9a0, skin=0x9ab37a, dark=0x111111, bone=0xe8e0c8;
     const g=this.add.graphics();
-    // ---- SOLDIER 40x70 : green, helmet, rifle ----
+    // ---- UNDEAD 40x70 : shambling corpse, grey-green flesh, outstretched arms ----
     {
       const w=40,h=70, cx=w/2;
-      // legs
-      g.fillStyle(0x2c3a22,1); g.fillRect(cx-9,h-18,7,18); g.fillRect(cx+2,h-18,7,18);
-      // boots
-      g.fillStyle(0x14160f,1); g.fillRect(cx-10,h-6,9,6); g.fillRect(cx+1,h-6,9,6);
-      // torso
-      g.fillStyle(0x4b6b3a,1); g.fillRoundedRect(cx-12,h*0.34,24,26,4);
-      // vest strap
-      g.fillStyle(0x33492a,1); g.fillRect(cx-2,h*0.34,4,26);
-      // arms
-      g.fillStyle(0x4b6b3a,1); g.fillRect(cx-15,h*0.36,5,18); g.fillRect(cx+10,h*0.36,5,18);
-      // head
-      g.fillStyle(skin,1); g.fillCircle(cx,h*0.24,7);
-      // helmet
-      g.fillStyle(0x3a3f2a,1); g.fillEllipse(cx,h*0.20,18,12); g.fillRect(cx-9,h*0.20,18,4);
-      // rifle
-      g.fillStyle(steel,1); g.fillRect(cx+6,h*0.46,18,4); g.fillRect(cx+4,h*0.50,4,8);
-      g.generateTexture('enemy_soldier',w,h);
+      // legs (torn, asymmetric)
+      g.fillStyle(0x3a4a32,1); g.fillRoundedRect(cx-9,h-18,7,18,2); g.fillRoundedRect(cx+2,h-16,7,16,2);
+      // bare feet
+      g.fillStyle(skin,1); g.fillRoundedRect(cx-10,h-6,9,6,2); g.fillRoundedRect(cx+1,h-5,9,5,2);
+      // torso (ragged shirt)
+      g.fillStyle(0x5a7a4a,1); g.fillRoundedRect(cx-12,h*0.34,24,26,4);
+      // torn hem
+      g.fillStyle(0x111111,1);
+      g.fillRect(cx-12,h*0.66,3,4); g.fillRect(cx-4,h*0.67,3,3); g.fillRect(cx+5,h*0.66,3,4);
+      // arms outstretched (rotting)
+      g.fillStyle(skin,1); g.fillRect(cx-16,h*0.36,5,18); g.fillRect(cx+11,h*0.36,5,18);
+      // clawed hands
+      g.fillStyle(skin,1);
+      g.fillTriangle(cx-16,h*0.55,cx-11,h*0.55,cx-20,h*0.62);
+      g.fillTriangle(cx+11,h*0.55,cx+16,h*0.55,cx+20,h*0.62);
+      // head (grey-green, sunken)
+      g.fillStyle(0x8aa27a,1); g.fillCircle(cx,h*0.24,7);
+      // jaw hanging
+      g.fillStyle(0x6a7a55,1); g.fillRect(cx-5,h*0.26,10,5);
+      // sunken eye sockets
+      g.fillStyle(0x0a0a0a,1); g.fillCircle(cx-3,h*0.21,2); g.fillCircle(cx+3,h*0.21,2);
+      // exposed teeth
+      g.fillStyle(bone,1); g.fillRect(cx-4,h*0.27,3,2); g.fillRect(cx+1,h*0.27,3,2);
+      g.generateTexture('enemy_undead',w,h);
     }
     g.clear();
-    // ---- SNIPER 36x66 : grey, ghillie, long rifle + scope ----
+    // ---- SPITTER 36x66 : hunched skeleton, dripping bile, hollow ribs ----
     {
       const w=36,h=66, cx=w/2;
-      // ghillie legs
-      g.fillStyle(0x5a5f4a,1); g.fillRoundedRect(cx-8,h-16,7,16,3); g.fillRoundedRect(cx+1,h-16,7,16,3);
-      // ragged fringe
-      g.fillStyle(0x6b6f55,1);
-      for(let i=0;i<5;i++){ g.fillRect(cx-9+i*4,h-4,2,5); }
-      // torso (grey)
-      g.fillStyle(0x6b6b6b,1); g.fillRoundedRect(cx-11,h*0.32,22,24,4);
-      // arms forward on rifle
-      g.fillStyle(0x5a5a5a,1); g.fillRect(cx+2,h*0.40,12,5); g.fillRect(cx+2,h*0.46,12,5);
-      // head
-      g.fillStyle(skin,1); g.fillCircle(cx,h*0.22,6);
-      // hood
-      g.fillStyle(0x5a5a4a,1); g.fillEllipse(cx,h*0.18,16,12);
-      // long rifle
-      g.fillStyle(steel,1); g.fillRect(cx-2,h*0.40,24,3);
-      // scope glint
-      g.fillStyle(0x88ddff,1); g.fillRect(cx+14,h*0.37,4,3);
-      g.generateTexture('enemy_sniper',w,h);
+      // legs (bone-thin)
+      g.fillStyle(bone,1); g.fillRoundedRect(cx-7,h-16,4,16,2); g.fillRoundedRect(cx+3,h-16,4,16,2);
+      // pelvis
+      g.fillStyle(bone,1); g.fillRect(cx-6,h*0.62,12,4);
+      // ribcage (vertical lines)
+      g.fillStyle(0xc8c0a8,1); g.fillRect(cx-8,h*0.32,16,22);
+      g.fillStyle(0x6a6455,1);
+      for(let i=0;i<4;i++){ g.fillRect(cx-7,h*0.35+i*5,14,2); }
+      // spine
+      g.fillStyle(0xe8e0c8,1); g.fillRect(cx-1,h*0.32,2,24);
+      // arms forward (spitting bile)
+      g.fillStyle(bone,1); g.fillRect(cx+3,h*0.38,11,4); g.fillRect(cx+3,h*0.44,11,4);
+      // skull
+      g.fillStyle(0xe8e0c8,1); g.fillCircle(cx,h*0.22,7);
+      // eye sockets (glowing green)
+      g.fillStyle(0x0a0a0a,1); g.fillCircle(cx-3,h*0.22,2); g.fillCircle(cx+3,h*0.22,2);
+      g.fillStyle(0x66ff44,1); g.fillCircle(cx-3,h*0.22,0.8); g.fillCircle(cx+3,h*0.22,0.8);
+      // jagged teeth
+      g.fillStyle(0x111111,1); g.fillRect(cx-4,h*0.27,8,2);
+      // bile drip
+      g.fillStyle(0x88cc44,0.9); g.fillCircle(cx+12,h*0.46,3);
+      g.generateTexture('enemy_spitter',w,h);
     }
     g.clear();
-    // ---- TANK 70x90 : heavy armor, huge vest, helmet, no rifle (brute) ----
+    // ---- BRUTE 70x90 : hulking ogre, small head, massive fists, mossy hide ----
     {
       const w=70,h=90, cx=w/2;
-      // legs
-      g.fillStyle(0x6a4220,1); g.fillRoundedRect(cx-16,h-22,14,22,4); g.fillRoundedRect(cx+2,h-22,14,22,4);
-      g.fillStyle(0x3a2410,1); g.fillRect(cx-17,h-6,16,6); g.fillRect(cx+1,h-6,16,6);
-      // big torso
-      g.fillStyle(0x8a5a2a,1); g.fillRoundedRect(cx-26,h*0.30,52,40,6);
-      // armor plates
-      g.fillStyle(0x6a4220,1); g.fillRoundedRect(cx-22,h*0.34,44,18,4);
-      g.lineStyle(2,0x4a2e14,1); g.strokeRect(cx-22,h*0.34,44,18);
-      // shoulder pads
-      g.fillStyle(0x6a4220,1); g.fillCircle(cx-22,h*0.34,9); g.fillCircle(cx+22,h*0.34,9);
-      // arms (thick)
-      g.fillStyle(0x8a5a2a,1); g.fillRect(cx-30,h*0.36,9,26); g.fillRect(cx+21,h*0.36,9,26);
-      // fists
-      g.fillStyle(skin,1); g.fillCircle(cx-26,h*0.74,7); g.fillCircle(cx+26,h*0.74,7);
-      // head
-      g.fillStyle(skin,1); g.fillCircle(cx,h*0.22,9);
-      // heavy helmet
-      g.fillStyle(0x4a2e14,1); g.fillEllipse(cx,h*0.16,26,16); g.fillRect(cx-13,h*0.16,26,5);
-      g.generateTexture('enemy_tank',w,h);
+      // legs (thick, squat)
+      g.fillStyle(0x4a3a22,1); g.fillRoundedRect(cx-18,h-22,16,22,5); g.fillRoundedRect(cx+2,h-22,16,22,5);
+      // big clawed feet
+      g.fillStyle(0x2a1a08,1); g.fillRect(cx-19,h-6,18,6); g.fillRect(cx+1,h-6,18,6);
+      // claws
+      g.fillStyle(0x8a7a5a,1);
+      g.fillTriangle(cx-19,h-6,cx-19,h-6,cx-22,h-2);
+      g.fillTriangle(cx+19,h-6,cx+19,h-6,cx+22,h-2);
+      // massive torso
+      g.fillStyle(0x6a4a2a,1); g.fillRoundedRect(cx-28,h*0.28,56,44,8);
+      // moss patches
+      g.fillStyle(0x3a5a2a,0.6);
+      g.fillCircle(cx-18,h*0.40,6); g.fillCircle(cx+20,h*0.50,5); g.fillCircle(cx-8,h*0.55,4);
+      // scars / stitches
+      g.lineStyle(2,0x3a2410,1); g.strokeLineShape(new Phaser.Geom.Line(cx-10,h*0.32,cx-10,h*0.50));
+      // arms (huge, hanging)
+      g.fillStyle(0x6a4a2a,1); g.fillRect(cx-34,h*0.30,12,34); g.fillRect(cx+22,h*0.30,12,34);
+      // fists (enormous, knuckles dragging)
+      g.fillStyle(0x8a6a3a,1); g.fillCircle(cx-28,h*0.80,10); g.fillCircle(cx+28,h*0.80,10);
+      // small misshapen head
+      g.fillStyle(0x5a3a1a,1); g.fillCircle(cx,h*0.20,8);
+      // beady red eyes
+      g.fillStyle(0xff2020,1); g.fillCircle(cx-3,h*0.18,1.5); g.fillCircle(cx+3,h*0.18,1.5);
+      // tusks
+      g.fillStyle(bone,1);
+      g.fillTriangle(cx-5,h*0.25,cx-3,h*0.25,cx-6,h*0.30);
+      g.fillTriangle(cx+5,h*0.25,cx+3,h*0.25,cx+6,h*0.30);
+      g.generateTexture('enemy_brute',w,h);
     }
     g.clear();
-    // ---- SUICIDE 38x68 : orange, bomb vest, arms forward charging ----
+    // ---- BOMBER 38x68 : bloated corpse, glowing boils, lumbers forward ----
     {
       const w=38,h=68, cx=w/2;
-      // legs (running)
-      g.fillStyle(0xa85a10,1); g.fillRect(cx-9,h-16,7,16); g.fillRect(cx+2,h-18,7,18);
-      g.fillStyle(0x6a3a08,1); g.fillRect(cx-10,h-5,9,5); g.fillRect(cx+1,h-6,9,6);
-      // torso
-      g.fillStyle(0xd97a1a,1); g.fillRoundedRect(cx-12,h*0.34,24,24,4);
-      // bomb vest (red dynamite sticks)
-      g.fillStyle(0xcc2020,1);
-      g.fillRect(cx-9,h*0.38,3,16); g.fillRect(cx-4,h*0.38,3,16); g.fillRect(cx+1,h*0.38,3,16); g.fillRect(cx+6,h*0.38,3,16);
-      g.fillStyle(0xffe040,1); g.fillRect(cx-9,h*0.37,3,2); g.fillRect(cx+6,h*0.37,3,2);
-      // arms forward
-      g.fillStyle(0xd97a1a,1); g.fillRect(cx-3,h*0.40,14,5); g.fillRect(cx-3,h*0.47,14,5);
-      // head
-      g.fillStyle(skin,1); g.fillCircle(cx,h*0.24,7);
-      // bandana
-      g.fillStyle(0xa02020,1); g.fillRect(cx-8,h*0.20,16,4);
-      g.generateTexture('enemy_suicide',w,h);
+      // legs (stiff, lumbering)
+      g.fillStyle(0x6a3a18,1); g.fillRoundedRect(cx-9,h-16,7,16,2); g.fillRoundedRect(cx+2,h-16,7,16,2);
+      // torn boots
+      g.fillStyle(0x3a1a08,1); g.fillRoundedRect(cx-10,h-5,9,5,2); g.fillRoundedRect(cx+1,h-5,9,5,2);
+      // distended belly (orange/yellow pus)
+      g.fillStyle(0xd97a1a,1); g.fillRoundedRect(cx-13,h*0.34,26,28,6);
+      g.fillStyle(0xf2aa44,0.7); g.fillCircle(cx-5,h*0.46,4); g.fillCircle(cx+6,h*0.52,3);
+      // glowing boils (red/yellow)
+      g.fillStyle(0xcc2020,1); g.fillCircle(cx-8,h*0.40,2); g.fillCircle(cx+7,h*0.44,2);
+      g.fillStyle(0xffe040,1); g.fillCircle(cx-8,h*0.40,0.8); g.fillCircle(cx+7,h*0.44,0.8);
+      // reaching arms
+      g.fillStyle(0x8a4a18,1); g.fillRect(cx-15,h*0.36,5,16); g.fillRect(cx+10,h*0.36,5,16);
+      // clawed hands
+      g.fillStyle(0x6a3a08,1);
+      g.fillTriangle(cx-15,h*0.54,cx-10,h*0.54,cx-18,h*0.60);
+      g.fillTriangle(cx+10,h*0.54,cx+15,h*0.54,cx+18,h*0.60);
+      // head (bloated, one eye burst)
+      g.fillStyle(0xb05a1a,1); g.fillCircle(cx,h*0.24,7);
+      g.fillStyle(0x0a0a0a,1); g.fillCircle(cx-3,h*0.21,2);
+      g.fillStyle(0xff2020,1); g.fillCircle(cx+3,h*0.21,2);
+      // stitched mouth
+      g.lineStyle(1,0x3a1a08,1); g.strokeLineShape(new Phaser.Geom.Line(cx-5,h*0.26,cx+5,h*0.26));
+      // fuse spark on top
+      g.fillStyle(0xffe040,1); g.fillCircle(cx,h*0.13,1.5);
+      g.generateTexture('enemy_bomber',w,h);
     }
     g.clear();
-    // ---- GHOST 38x70 : purple translucent, wavy tail, hollow eyes ----
+    // ---- WRAITH 38x70 : spectral purple shroud, hollow eyes, wavy tail ----
     {
       const w=38,h=70, cx=w/2;
       // body: rounded top, wavy bottom (draw via path)
@@ -310,10 +345,10 @@ class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff,1); g.fillCircle(cx-5,h*0.25,1); g.fillCircle(cx+5,h*0.25,1);
       // open mouth
       g.fillStyle(0x111111,1); g.fillEllipse(cx,h*0.40,7,5);
-      g.generateTexture('enemy_ghost',w,h);
+      g.generateTexture('enemy_wraith',w,h);
     }
     g.clear();
-    // ---- INNOCENT 40x70 : blue shirt, yellow vest, raised hands, no weapon ----
+    // ---- VILLAGER 40x70 : plain townsperson, raised hands, no weapon ----
     {
       const w=40,h=70, cx=w/2;
       // legs (plain trousers)
@@ -326,12 +361,12 @@ class BootScene extends Phaser.Scene {
       // arms raised (surrender)
       g.fillStyle(0x2a7ad9,1); g.fillRect(cx-15,h*0.18,5,20); g.fillRect(cx+10,h*0.18,5,20);
       // hands up
-      g.fillStyle(skin,1); g.fillCircle(cx-12,h*0.16,4); g.fillCircle(cx+12,h*0.16,4);
+      g.fillStyle(flesh,1); g.fillCircle(cx-12,h*0.16,4); g.fillCircle(cx+12,h*0.16,4);
       // head
-      g.fillStyle(skin,1); g.fillCircle(cx,h*0.24,7);
+      g.fillStyle(flesh,1); g.fillCircle(cx,h*0.24,7);
       // hair
       g.fillStyle(0x3a2a1a,1); g.fillEllipse(cx,h*0.19,16,9);
-      g.generateTexture('enemy_innocent',w,h);
+      g.generateTexture('enemy_villager',w,h);
     }
     g.destroy();
   }
@@ -494,9 +529,9 @@ class MenuScene extends Phaser.Scene {
     btn.on('pointerdown',()=>{ Audio.init(); Audio.resume(); Audio.startAmbient(); this.scene.start('Game'); });
 
     // ---- enemy preview thumbnails ----
-    const enemies=['soldier','sniper','tank','suicide','ghost','innocent'];
-    const names=['SOLDADO','SNIPER','TANQUE','SUICIDA','FANTASMA','CIVIL'];
-    const eKeys=['enemy_soldier','enemy_sniper','enemy_tank','enemy_suicide','enemy_ghost','enemy_innocent'];
+    const enemies=['undead','spitter','brute','bomber','wraith','villager'];
+    const names=['MORTO-VIVO','CUSPIDOR','BRUTAMONTES','BOMBARDEIRO','ESPECTRO','ALDEÃO'];
+    const eKeys=['enemy_undead','enemy_spitter','enemy_brute','enemy_bomber','enemy_wraith','enemy_villager'];
     const iconY=430;
     const spacing=150;
     const startX=W/2-(enemies.length-1)*spacing/2;
@@ -518,12 +553,12 @@ class MenuScene extends Phaser.Scene {
       '[>] Clique esquerdo: atirar',
       '[R] Recarregar  ('+CLIP_SIZE+' balas / pente)',
       '[P] ESC / P: pausar',
-      'Cuidado com os CIVIS — azul/amarelo, sem arma.',
+      'Cuidado com os ALDEÕES — azul/amarelo, sem arma.',
     ];
     this.add.text(W/2,530,help,{fontSize:'13px',color:'#667788',align:'center',lineSpacing:2}).setOrigin(0.5).setDepth(4);
 
     // ---- footer: version + highscore ----
-    this.add.text(12,H-14,'v1.1.0',{fontSize:'11px',color:'#445566'}).setOrigin(0,0.5).setDepth(5);
+    this.add.text(12,H-14,'v1.2.0',{fontSize:'11px',color:'#445566'}).setOrigin(0,0.5).setDepth(5);
     const hs=parseInt(localStorage.getItem('gs_highscore')||'0',10);
     this.add.text(W-12,H-14,hs>0?'RECORDE: '+hs.toLocaleString():'',{fontSize:'13px',color:'#ffcc44'}).setOrigin(1,0.5).setDepth(5);
 
@@ -573,11 +608,11 @@ class Enemy extends Phaser.GameObjects.Container {
     super(scene,x,y); scene.add.existing(this);
     this.type=type; this.def=ENEMY_DEFS[type];
     const scale=scene.roundScale||getRoundScale(1);
-    this.hp=(type==='tank'?2:this.def.hp); this.maxHp=this.hp;
+    this.hp=(type==='brute'?2:this.def.hp); this.maxHp=this.hp;
     this.visibleTime=Phaser.Math.Between(this.def.vis[0],this.def.vis[1])*scale.visMult;
     this.born=scene.time.now; this.alive=true; this.killed=false; this.scored=false;
     this.slowFactor=1;
-    const tex='enemy_'+(type==='innocent'?'innocent':type);
+    const tex='enemy_'+(type==='villager'?'villager':type);
     const body=this.scene.add.image(0,0,tex);
     this.add(body); this.body=body;
     const icon=this.scene.add.text(0,-body.height*0.5-6,this.def.icon,{fontSize:'12px',color:'#fff',fontStyle:'bold',backgroundColor:'#000',padding:{x:3,y:1}}).setOrigin(0.5);
@@ -589,7 +624,7 @@ class Enemy extends Phaser.GameObjects.Container {
     this.shadow=this.scene.add.ellipse(x,y+body.height/2-4,body.width,8,0x000000,0.35).setDepth(9);
     // entrance: dark silhouette warning then reveal
     this.setScale(0.2);
-    if(type!=='ghost'){
+    if(type!=='wraith'){
       this.body.setTint(0x000000); this.alpha=0.5; this.silUntil=this.scene.time.now+300;
       this.scene.time.delayedCall(300,()=>{ if(!this.active) return;
         this.scene.tweens.add({targets:this,alpha:1,duration:100,onComplete:()=>{ if(this.body) this.body.clearTint(); }}); });
@@ -609,7 +644,7 @@ class Enemy extends Phaser.GameObjects.Container {
     Audio.hit();
     scene.spawnBlood(this.x,this.y);
     if(this.hp<=0){ this.die(scene); return true; }
-    // tank hit flash
+    // brute hit flash
     this.body.setTintFill(0xffffff); this.flashUntil=this.scene.time.now+80;
     this.scene.time.delayedCall(80,()=>this.body&&this.body.clearTint());
     return false;
@@ -622,24 +657,24 @@ class Enemy extends Phaser.GameObjects.Container {
   escape(){
     if(this.killed) return;
     this.killed=true; this.alive=false;
-    // innocents never attack the player
+    // villagers never attack the player
     if(!this.innocent) this.scene.takeDamage(this.def.dmg);
     this.scene.tweens.add({targets:this,alpha:0,duration:200,onComplete:()=>this.destroy()});
   }
   destroy(fromScene){ if(this.shadow) this.shadow.destroy(); super.destroy(fromScene); }
 }
-class Soldier extends Enemy { constructor(s,x,y){ super(s,x,y,'soldier'); } }
-class Sniper  extends Enemy { constructor(s,x,y){ super(s,x,y,'sniper'); } }
-class Tank    extends Enemy {
-  constructor(s,x,y){ super(s,x,y,'tank');
+class Undead extends Enemy { constructor(s,x,y){ super(s,x,y,'undead'); } }
+class Spitter extends Enemy { constructor(s,x,y){ super(s,x,y,'spitter'); } }
+class Brute    extends Enemy {
+  constructor(s,x,y){ super(s,x,y,'brute');
     this.barBg=s.add.rectangle(0,-this.body.height/2-12,70,6,0x000000,0.6).setOrigin(0.5);
     this.bar=s.add.rectangle(0,-this.body.height/2-12,70,6,0xff4040).setOrigin(0.5);
     this.add([this.barBg,this.bar]);
   }
   takeHit(s){ const r=super.takeHit(s); if(this.bar){ this.bar.scaleX=Math.max(0,this.hp/this.maxHp);} return r; }
 }
-class Suicide extends Enemy {
-  constructor(s,x,y){ super(s,x,y,'suicide'); this.targetY=BASE_H/2; const sc=s.roundScale||getRoundScale(1); this.speed=Phaser.Math.Between(18,30)*sc.speedMult; }
+class Bomber extends Enemy {
+  constructor(s,x,y){ super(s,x,y,'bomber'); this.targetY=BASE_H/2; const sc=s.roundScale||getRoundScale(1); this.speed=Phaser.Math.Between(18,30)*sc.speedMult; }
   preUpdate(t,d){
     if(!this.alive) return;
     if(this.y>this.targetY){ this.y-=this.speed*(d/1000)*this.slowFactor; }
@@ -649,8 +684,8 @@ class Suicide extends Enemy {
   }
   explode(){ if(this.killed) return; this.killed=true; this.alive=false; this.scene.takeDamage(this.def.dmg); this.scene.spawnBlood(this.x,this.y); this.destroy(); }
 }
-class Ghost extends Enemy {
-  constructor(s,x,y){ super(s,x,y,'ghost'); this.blink=0; this.phasable=true; const sc=s.roundScale||getRoundScale(1); this.blinkDuration=sc.ghostBlink||1400; }
+class Wraith extends Enemy {
+  constructor(s,x,y){ super(s,x,y,'wraith'); this.blink=0; this.phasable=true; const sc=s.roundScale||getRoundScale(1); this.blinkDuration=sc.ghostBlink||1400; }
   preUpdate(t,d){
     if(!this.alive) return;
     this.blink+=d*this.slowFactor;
@@ -1209,7 +1244,7 @@ class GameScene extends Phaser.Scene {
   pickEnemyType(){
     const w=this.roundScale.weights;
     const entries=Object.entries(w).filter(([,v])=>v>0);
-    if(!entries.length) return 'soldier';
+    if(!entries.length) return 'undead';
     const total=entries.reduce((a,[,v])=>a+v,0);
     let r=Math.random()*total;
     for(const [k,v] of entries){ r-=v; if(r<=0) return k; }
@@ -1218,26 +1253,26 @@ class GameScene extends Phaser.Scene {
   spawnEnemy(){
     if(this.enemies.filter(e=>e.alive).length>=this.maxConcurrent) return;
     let type=this.pickEnemyType();
-    // innocents mixed in
+    // villagers mixed in
     if(this.roundInnocentsSpawned<this.roundInnocentsCount && Math.random()<=this.roundScale.innocentRate){
-      type='innocent'; this.roundInnocentsSpawned++;
+      type='villager'; this.roundInnocentsSpawned++;
     }
-    // max 1 suicide alive at a time
-    if(type==='suicide' && this.enemies.some(e=>e.alive && e.type==='suicide')){
-      const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='suicide' && v>0);
-      type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'soldier';
+    // max 1 bomber alive at a time
+    if(type==='bomber' && this.enemies.some(e=>e.alive && e.type==='bomber')){
+      const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='bomber' && v>0);
+      type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'undead';
     }
     const sb=getSpawnBounds(this.stats.round);
     const x=Phaser.Math.Between(sb.enemyXMin,sb.enemyXMax);
-    const y=(type==='suicide')?Phaser.Math.Between(sb.enemyYSuicideMin,sb.enemyYSuicideMax):Phaser.Math.Between(sb.enemyYMin,sb.enemyYMax);
+    const y=(type==='bomber')?Phaser.Math.Between(sb.enemyYSuicideMin,sb.enemyYSuicideMax):Phaser.Math.Between(sb.enemyYMin,sb.enemyYMax);
     let e;
-    if(type==='soldier') e=new Soldier(this,x,y);
-    else if(type==='sniper') e=new Sniper(this,x,y);
-    else if(type==='tank') e=new Tank(this,x,y);
-    else if(type==='suicide') e=new Suicide(this,x,y);
-    else if(type==='ghost') e=new Ghost(this,x,y);
-    else e=new Enemy(this,x,y,'innocent');
-    e.innocent=(type==='innocent');
+    if(type==='undead') e=new Undead(this,x,y);
+    else if(type==='spitter') e=new Spitter(this,x,y);
+    else if(type==='brute') e=new Brute(this,x,y);
+    else if(type==='bomber') e=new Bomber(this,x,y);
+    else if(type==='wraith') e=new Wraith(this,x,y);
+    else e=new Enemy(this,x,y,'villager');
+    e.innocent=(type==='villager');
     this.enemies.push(e);
     this.roundSpawned++;
   }
@@ -1302,6 +1337,7 @@ class GameScene extends Phaser.Scene {
     this.stats.innocentsKilled++;
     this.stats.combo=1; this.stats.comboCount=0;
     this.tweens.add({targets:e,alpha:0,angle:90,duration:300,onComplete:()=>e.destroy()});
+    this.spawnBlood(e.x,e.y,true,0xcc0000);
     this.showInnocentWarning();
     this.flashDamage();
     if(this.stats.innocentsKilled>=5){ this.gameOver(); return; }
@@ -1309,7 +1345,7 @@ class GameScene extends Phaser.Scene {
     this.ui.refresh();
   }
   showInnocentWarning(){
-    const w=this.add.text(BASE_W/2,BASE_H/2-40,'INOCENTE ABATIDO!',{fontSize:'48px',color:'#ff2020',fontStyle:'bold'}).setOrigin(0.5).setDepth(96);
+    const w=this.add.text(BASE_W/2,BASE_H/2-40,'ALDEÃO ABATIDO!',{fontSize:'48px',color:'#ff2020',fontStyle:'bold'}).setOrigin(0.5).setDepth(96);
     this.tweens.add({targets:w,scaleX:1.1,scaleY:1.1,duration:200,yoyo:true,repeat:1});
     this.time.delayedCall(2000,()=>w.destroy());
   }
@@ -1399,10 +1435,10 @@ class GameScene extends Phaser.Scene {
   flashDamage(){
     this.tweens.add({targets:this.vignette,fillAlpha:0.5,duration:120,yoyo:true,onComplete:()=>this.vignette.setFillStyle(0xff0000,0)});
   }
-  spawnBlood(x,y,big=false){
+  spawnBlood(x,y,big=false, color=0x44cc22){
     const n=big?18:8;
     for(let i=0;i<n;i++){
-      const p=this.add.rectangle(x,y,4,4,0xcc0000).setDepth(80);
+      const p=this.add.rectangle(x,y,4,4,color).setDepth(80);
       const a=Phaser.Math.FloatBetween(0,Math.PI*2), s=Phaser.Math.Between(40,160);
       this.tweens.add({targets:p,x:x+Math.cos(a)*s,y:y+Math.sin(a)*s,alpha:0,scaleX:0.3,scaleY:0.3,duration: Phaser.Math.Between(300,600),onComplete:()=>p.destroy()});
     }
@@ -1575,7 +1611,7 @@ class GameOverScene extends Phaser.Scene {
       'Pontuação final: '+this.stats.score,
       'Round alcançado: '+this.stats.round,
       'Inimigos eliminados: '+this.stats.kills,
-      'Inocentes mortos: '+this.stats.innocentsKilled,
+      'Aldeões mortos: '+this.stats.innocentsKilled,
       'Precisão: '+acc+'%',
       'Continues restantes: '+this.stats.continues,
     ];
