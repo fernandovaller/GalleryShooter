@@ -1316,7 +1316,7 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(e){
     this.stats.kills++;
     this.stats.score+=e.def.pts*this.stats.combo;
-    const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/50000);
+    const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/10000);
     if(earned>0){
       this.stats.continues+=earned;
       this.stats.lastContinueScore+=earned*10000;
