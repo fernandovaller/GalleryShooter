@@ -703,6 +703,32 @@ class GameScene extends Phaser.Scene {
     for(let i=0;i<3;i++){ const y=groundY-180-i*60;
       wires.beginPath(); wires.moveTo(0,y); wires.lineTo(W*0.5,y+15); wires.lineTo(W,y); wires.strokePath(); }
 
+    // ---- SPOTLIGHT SWEEP (depth 17, above rain) ----
+    this.spotlightG=this.add.graphics().setDepth(17);
+    this.spotlight = {
+      x: W*0.15,
+      targetX: W*0.85,
+      y: H*0.12,
+      beamAngle: 0.35,
+      beamLen: groundY - H*0.12 + 40,
+      beamWidth: 90,
+      alpha: 0,
+      state: 'off',
+      timer: 0,
+      nextTrigger: Phaser.Math.Between(6000,14000),
+    };
+    this.spotlightSources = [
+      {x: W*0.28, y: H*0.15},
+      {x: W*0.72, y: H*0.15},
+    ];
+    // spotlight post poles (visual structures for the sources)
+    for(const src of this.spotlightSources){
+      const pg=this.add.graphics().setDepth(13);
+      pg.fillStyle(0x2a2a30,1); pg.fillRect(src.x-2,src.y,4,groundY-src.y);
+      pg.fillStyle(0x3a3a40,1); pg.fillRect(src.x-6,src.y-3,12,6);
+      pg.fillStyle(0x555560,1); pg.fillCircle(src.x,src.y-2,5);
+    }
+
     // ---- RAIN (back depth 5 / front depth 16) ----
     this.rainBack=this.add.graphics().setDepth(5);
     this.rainFront=this.add.graphics().setDepth(16);
@@ -774,6 +800,8 @@ class GameScene extends Phaser.Scene {
   updateScenery(delta){
     const mx=this.input.mousePointer.x, cx=this.scale.width/2, ratio=(mx-cx)/cx;
     this.layerBack.x=ratio*-15; this.layerMid.x=ratio*-30; this.layerFront.x=ratio*-55;
+    this.updateSpotlight(delta);
+    this.updateStars(delta);
     const now=this.time.now;
     this.blinkers.forEach(b=>{ if(now>b.next){ b.on=!b.on; b.rect.fillColor=b.on?b.col:0x0D1117; b.rect.fillAlpha=b.on?0.85:0.4; b.next=now+Phaser.Math.Between(2000,6000); } });
     this.updateRain(this.rainBack,this.dropsBack);
@@ -806,6 +834,55 @@ class GameScene extends Phaser.Scene {
       this.steamParticles.push({x:p.x,y:p.y,vx:Phaser.Math.FloatBetween(-0.3,0.3),vy:Phaser.Math.FloatBetween(0.5,1),alpha:0.3,r:Phaser.Math.Between(2,4)}); }
     this.steamParticles=this.steamParticles.filter(p=>p.alpha>0);
     this.steamParticles.forEach(p=>{ p.y-=p.vy; p.x+=p.vx; p.alpha-=0.006; g.fillStyle(0xffffff,p.alpha); g.fillCircle(p.x,p.y,p.r); });
+  }
+  updateSpotlight(delta){
+    const s=this.spotlight, g=this.spotlightG; if(!g) return;
+    s.timer += delta;
+    if(s.state==='off'){
+      if(s.timer>s.nextTrigger){ s.state='sweeping'; s.timer=0; s.alpha=0; s.x=s.targetX<W*0.5?W*0.1:W*0.9; s.startX=s.x; s.endX=s.targetX; if(s.startX>s.endX){const t=s.startX;s.startX=s.endX;s.endX=t;} }
+    } else if(s.state==='sweeping'){
+      const dur=4000; const t=s.timer/dur;
+      if(t>=1){ s.state='off'; s.timer=0; s.x=s.endX; s.alpha=0;
+        s.targetX=Phaser.Math.FloatBetween(W*0.15,W*0.85);
+        s.nextTrigger=Phaser.Math.Between(6000,14000); }
+      else {
+        s.x=Phaser.Display.Linear(s.startX,s.endX,t);
+        s.alpha = t<0.15 ? t/0.15 : t>0.85 ? (1-t)/0.15 : 1;
+        s.alpha *= 0.08;
+      }
+    }
+    g.clear();
+    if(s.alpha<=0) return;
+    const sx=s.x, sy=s.y;
+    const bw=s.beamWidth, bl=s.beamLen;
+    const halfA=s.beamAngle;
+    // draw beam as cone
+    g.beginPath();
+    g.moveTo(sx,sy);
+    g.lineTo(sx-bw, sy+bl);
+    g.lineTo(sx+bw, sy+bl);
+    g.closePath();
+    g.fillStyle(0xffeecc, s.alpha); g.fillPath();
+    g.lineStyle(1,0xffeecc,s.alpha*0.5);
+    g.beginPath(); g.moveTo(sx,sy); g.lineTo(sx-bw,sy+bl); g.moveTo(sx,sy); g.lineTo(sx+bw,sy+bl); g.strokePath();
+    // source glow
+    g.fillStyle(0xffeecc, s.alpha*3); g.fillCircle(sx,sy,6);
+  }
+  updateStars(delta){
+    if(!this.stars) return;
+    const sg=this.add.graphics; // we don't clear sky graphics (static); instead update via container not feasible.
+    // Twinkle handled via overlapping small graphics drawing at depth 0 alpha changes.
+    // To keep it simple and fast we'll overlay a single graphics object.
+    if(!this.starOverlay){
+      this.starOverlay=this.add.graphics().setDepth(0);
+    }
+    const g=this.starOverlay; g.clear();
+    const tnow=this.time.now*0.001;
+    this.stars.forEach(s=>{
+      const tw=Math.sin(tnow*s.twSpeed+s.twPhase)*0.3+0.7;
+      const a=s.baseAlpha*tw;
+      if(a>s.baseAlpha*0.5){ g.fillStyle(0xffffff,a*0.3); g.fillCircle(s.x,s.y,s.r); }
+    });
   }
   triggerLightning(){
     if(this.over||this.paused){ this.time.delayedCall(Phaser.Math.Between(15000,35000),()=>this.triggerLightning()); return; }
