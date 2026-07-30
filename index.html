@@ -41,18 +41,18 @@ const ENEMY_DEFS = {
 };
 const ITEM_DEFS = {
   // common — white aura
-  med:    { icon:'💊', life:7000,  tier:'common', color:0xffffff },
-  ammo:   { icon:'🔫', life:7000,  tier:'common', color:0xffffff },
+  med:    { icon:'💊', life:7000,  tier:'common', color:0xffffff, name:'Remédio', desc:'Cura +20 HP' },
+  ammo:   { icon:'🔫', life:7000,  tier:'common', color:0xffffff, name:'Munição', desc:'Recarrega o pente' },
   // rare — blue aura
-  shield: { icon:'🛡️', life:9000,  tier:'rare',   color:0x40c0ff, shield:3 },
-  slow:   { icon:'⏱️', life:9000,  tier:'rare',   color:0x40c0ff, duration:6000 },
-  freeze: { icon:'❄️', life:9000,  tier:'rare',   color:0x40c0ff, duration:4000 },
-  lifesteal:{ icon:'🩸', life:9000, tier:'rare',   color:0x40c0ff, shots:6, heal:5 },
-  radar:  { icon:'📡', life:9000,  tier:'rare',   color:0x40c0ff, duration:6000 },
+  shield: { icon:'🛡️', life:9000,  tier:'rare',   color:0x40c0ff, name:'Escudo', desc:'Bloqueia 3 danos', shield:3 },
+  slow:   { icon:'⏱️', life:9000,  tier:'rare',   color:0x40c0ff, name:'Tempo Lento', desc:'Inimigos em câmera lenta', duration:6000 },
+  freeze: { icon:'❄️', life:9000,  tier:'rare',   color:0x40c0ff, name:'Congelamento', desc:'Inimigos congelados', duration:4000 },
+  lifesteal:{ icon:'🩸', life:9000, tier:'rare',   color:0x40c0ff, name:'Vampirismo', desc:'Cura ao acertar tiros', shots:6, heal:5 },
+  radar:  { icon:'📡', life:9000,  tier:'rare',   color:0x40c0ff, name:'Radar', desc:'Marca inimigos na tela', duration:6000 },
   // epic — gold aura
-  nade:   { icon:'💥', life:11000, tier:'epic',   color:0xffcc44 },
-  berserker:{ icon:'💢', life:11000, tier:'epic',  color:0xffcc44, duration:8000 },
-  doublepts:{ icon:'✨', life:11000, tier:'epic',  color:0xffcc44, duration:10000 },
+  nade:   { icon:'💥', life:11000, tier:'epic',   color:0xffcc44, name:'Granada', desc:'Elimina todos os inimigos' },
+  berserker:{ icon:'💢', life:11000, tier:'epic',  color:0xffcc44, name:'Fúria', desc:'Mata com 1 tiro', duration:8000 },
+  doublepts:{ icon:'✨', life:11000, tier:'epic',  color:0xffcc44, name:'2x Pontos', desc:'Pontuação dobrada', duration:10000 },
 };
 // items available per tier (common/rare/epic)
 const ITEM_POOL = ['med','ammo','shield','slow','freeze','lifesteal','radar','nade','berserker','doublepts'];
@@ -1567,6 +1567,7 @@ class GameScene extends Phaser.Scene {
     if(!item||!item.active) return;
     Audio.item();
     const k=item.kind; const def=ITEM_DEFS[k];
+    this.showItemBanner(def);
     if(k==='med') this.stats.hp=Math.min(this.stats.maxHp,this.stats.hp+20);
     else if(k==='ammo') this.stats.ammo=this.stats.clipSize;
     else if(k==='shield') this.stats.shield=def.shield||3;
@@ -1579,6 +1580,12 @@ class GameScene extends Phaser.Scene {
     else if(k==='nade') this.grenade();
     this.tweens.add({targets:item,scaleX:1.6,scaleY:1.6,alpha:0,duration:200,onComplete:()=>{ this.items=this.items.filter(i=>i!==item); item.destroy(); }});
     this.ui.refresh();
+  }
+  showItemBanner(def){
+    const color=def.tier==='epic'?'#ffcc44':def.tier==='rare'?'#40c0ff':'#ffffff';
+    const b=this.add.text(BASE_W/2,BASE_H*0.82,def.icon+' '+def.name,{fontSize:'32px',color,fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    const sub=this.add.text(BASE_W/2,BASE_H*0.82+38,def.desc,{fontSize:'18px',color:'#aabbcc'}).setOrigin(0.5).setDepth(95);
+    this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1500,onComplete:()=>{ b.destroy(); sub.destroy(); }});
   }
   applySlow(on){
     this.enemies.forEach(e=>{ e.slowFactor=on?0.5:1; });
