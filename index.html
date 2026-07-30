@@ -6,8 +6,8 @@
 <title>GALLERY SHOOTER</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#05060a; font-family:'Courier New',monospace; }
-  #game-container { width:100vw; height:100vh; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#05060a; font-family:'Courier New',monospace; display:flex; justify-content:center; align-items:center; }
+  #game-container { width:90vw; height:90vh; }
   canvas { display:block; }
 </style>
 </head>
@@ -19,7 +19,7 @@
    GALLERY SHOOTER — single-file Phaser 3 game
    ============================================================ */
 
-const BASE_W = 1280, BASE_H = 720;
+const BASE_W = 1024, BASE_H = 576;
 const MAX_ROUNDS = 10;
 /* seeded RNG so procedural scenery is stable across reloads */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -711,7 +711,7 @@ class GameScene extends Phaser.Scene {
       const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='suicide' && v>0);
       type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'soldier';
     }
-    const x=Phaser.Math.Between(120,BASE_W-120);
+    const x=Phaser.Math.Between(286,BASE_W-286);
     const y=(type==='suicide')?Phaser.Math.Between(BASE_H*0.66,BASE_H*0.72):Phaser.Math.Between(BASE_H*0.45,BASE_H*0.66);
     let e;
     if(type==='soldier') e=new Soldier(this,x,y);
@@ -807,7 +807,7 @@ class GameScene extends Phaser.Scene {
     if(this.activeItem) return;
     const kinds=Object.keys(ITEM_DEFS);
     const kind=Phaser.Utils.Array.GetRandom(kinds);
-    const x=Phaser.Math.Between(140,BASE_W-140), y=Phaser.Math.Between(BASE_H*0.42,BASE_H*0.62);
+    const x=Phaser.Math.Between(300,BASE_W-300), y=Phaser.Math.Between(BASE_H*0.42,BASE_H*0.62);
     this.activeItem=new PowerUp(this,x,y,kind);
   }
   collectItem(item){
