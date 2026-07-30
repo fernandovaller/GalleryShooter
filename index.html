@@ -1807,7 +1807,7 @@ class UIScene extends Phaser.Scene {
     // score + combo + coins
     this.scoreTxt=this.add.text(BASE_W-20,20,'0',{fontSize:'28px',color:'#ffdd40',fontStyle:'bold'}).setOrigin(1,0);
     this.comboTxt=this.add.text(BASE_W-20,52,'x1',{fontSize:'22px',color:'#ffffff'}).setOrigin(1,0);
-    this.coinTxt=this.add.text(BASE_W-20,80,'🪙 0',{fontSize:'18px',color:'#ffcc44'}).setOrigin(1,0);
+    this.coinTxt=this.add.text(BASE_W-20,80,'🪙 0',{fontSize:'18px',color:'#ffcc44',padding:{top:2,bottom:2}}).setOrigin(1,0);
 
     // ammo
     this.ammoTxt=this.add.text(20,BASE_H-30,'🔫 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
