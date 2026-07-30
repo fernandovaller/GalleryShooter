@@ -745,8 +745,8 @@ class Enemy extends Phaser.GameObjects.Container {
     this.setSize(body.width,body.height);
     this.setDepth(10);
     this.silUntil=0; this.flashUntil=0;
-    // shadow under feet
-    this.shadow=this.scene.add.ellipse(x,y+body.height/2-4,body.width,8,0x000000,0.35).setDepth(9);
+    // shadow under feet removed for cleaner look
+    // this.shadow=this.scene.add.ellipse(x,y+body.height/2-4,body.width,8,0x000000,0.35).setDepth(9);
     // entrance: dark silhouette warning then reveal
     this.setScale(0.2);
     if(type!=='wraith'){
@@ -794,7 +794,7 @@ class Enemy extends Phaser.GameObjects.Container {
     if(!this.innocent) this.scene.takeDamage(this.def.dmg);
     this.scene.tweens.add({targets:this,alpha:0,duration:200,onComplete:()=>this.destroy()});
   }
-  destroy(fromScene){ if(this.shadow) this.shadow.destroy(); super.destroy(fromScene); }
+  destroy(fromScene){ /* shadow removed: if(this.shadow) this.shadow.destroy(); */ super.destroy(fromScene); }
 }
 class Undead extends Enemy { constructor(s,x,y){ super(s,x,y,'undead'); } }
 class Spitter extends Enemy { constructor(s,x,y){ super(s,x,y,'spitter'); } }
@@ -1224,11 +1224,10 @@ class GameScene extends Phaser.Scene {
     this.updateSplashes();
     this.updateSteam();
     this.updateFog(delta);
-    // shadows + depth tint per enemy
+    // depth tint per enemy (shadow removed)
     const topY=BASE_H*0.45, botY=BASE_H*0.66;
     this.enemies.forEach(e=>{
-      if(!e.shadow||!e.body) return;
-      e.shadow.x=e.x; e.shadow.y=e.y+e.height/2-4;
+      if(!e.body) return;
       if(e.silUntil&&now<e.silUntil) return;
       if(e.flashUntil&&now<e.flashUntil) return;
       const t=Phaser.Math.Clamp((e.y-topY)/(botY-topY),0,1);
@@ -1734,6 +1733,7 @@ class GameScene extends Phaser.Scene {
     // reward coins for completing round
     const bonus = 20 + this.stats.round * 5;
     this.stats.coins += bonus;
+    this.ui && this.ui.refresh();
     const sub=this.add.text(BASE_W/2,BASE_H/2,'ROUND '+this.stats.round+' CONCLUÍDO\nPontos: '+this.stats.score+'\n+'+bonus+' moedas',{fontSize:'36px',color:'#7fff7f',align:'center',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
     this.time.delayedCall(2500,()=>{
       sub.destroy();
@@ -1798,24 +1798,25 @@ class UIScene extends Phaser.Scene {
   create(){
     this.s=this.gameScene.stats;
     // HP bar bg
-    this.add.text(20,18,'VIDA',{fontSize:'16px',color:'#fff'});
-    this.hpBg=this.add.rectangle(20,40,220,18,0x330000).setOrigin(0,0.5).setStrokeStyle(1,0xffffff,0.4);
-    this.hpFill=this.add.rectangle(20,40,220,18,0xff2020).setOrigin(0,0.5);
-    this.hpTxt=this.add.text(130,40,'100',{fontSize:'14px',color:'#fff'}).setOrigin(0.5);
-    this.shieldTxt=this.add.text(250,40,'S:0',{fontSize:'16px',color:'#7fdfff'}).setOrigin(0,0.5);
+    this.add.text(20,40,'❤️',{fontSize:'16px',color:'#fff'}).setOrigin(0.5);
+    this.hpBg=this.add.rectangle(38,40,220,18,0x330000).setOrigin(0,0.5).setStrokeStyle(1,0xffffff,0.4);
+    this.hpFill=this.add.rectangle(38,40,220,18,0xff2020).setOrigin(0,0.5);
+    this.hpTxt=this.add.text(148,40,'100',{fontSize:'14px',color:'#fff'}).setOrigin(0.5);
+    this.shieldTxt=this.add.text(10,62,'🛡️ 0',{fontSize:'16px',color:'#7fdfff'}).setOrigin(0,0.5);
 
-    // score + combo
+    // score + combo + coins
     this.scoreTxt=this.add.text(BASE_W-20,20,'0',{fontSize:'28px',color:'#ffdd40',fontStyle:'bold'}).setOrigin(1,0);
     this.comboTxt=this.add.text(BASE_W-20,52,'x1',{fontSize:'22px',color:'#ffffff'}).setOrigin(1,0);
+    this.coinTxt=this.add.text(BASE_W-20,80,'🪙 0',{fontSize:'18px',color:'#ffcc44'}).setOrigin(1,0);
 
     // ammo
-    this.ammoTxt=this.add.text(20,BASE_H-30,'AMMO 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
+    this.ammoTxt=this.add.text(20,BASE_H-30,'🔫 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
     this.reloadTxt=this.add.text(20,BASE_H-55,'RECARREGANDO...',{fontSize:'18px',color:'#ff8030'}).setOrigin(0,1).setVisible(false);
 
     // round
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
     // continues
-    this.continueTxt=this.add.text(BASE_W/2,52,'CON x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
+    this.continueTxt=this.add.text(BASE_W/2,52,'💀 x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
     // active buffs panel (bottom-left, above ammo)
     this.buffPanel=this.add.container(20,BASE_H-90).setDepth(50);
     this.buffSlots=[];
@@ -1853,17 +1854,18 @@ class UIScene extends Phaser.Scene {
   }
   refresh(){
     const s=this.s;
-    const pct=Math.max(0,s.hp)/100;
-    this.hpFill.scaleX=pct; this.hpFill.x=20;
+    const pct=Math.max(0,s.hp)/Math.max(1,s.maxHp);
+    this.hpFill.scaleX=pct; this.hpFill.x=38;
     this.hpTxt.setText(Math.max(0,s.hp|0));
-    this.shieldTxt.setText('S:'+s.shield);
+    this.shieldTxt.setText('🛡️ '+s.shield);
     this.scoreTxt.setText(s.score);
     this.comboTxt.setText('x'+s.combo);
     this.comboTxt.setColor(s.combo>1?'#ff8030':'#ffffff');
-    this.ammoTxt.setText('AMMO '+s.ammo+' / '+s.clipSize);
+    this.ammoTxt.setText('🔫 '+s.ammo+' / '+s.clipSize);
     this.reloadTxt.setVisible(s.reloading);
     this.roundTxt.setText('ROUND '+s.round);
-    this.continueTxt.setText('CON x'+s.continues);
+    this.continueTxt.setText('💀 x'+s.continues);
+    this.coinTxt.setText('🪙 '+s.coins);
   }
 }
 
