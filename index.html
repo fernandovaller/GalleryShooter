@@ -21,6 +21,8 @@
 
 const BASE_W = 1280, BASE_H = 720;
 const MAX_ROUNDS = 10;
+/* seeded RNG so procedural scenery is stable across reloads */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const CLIP_SIZE = 30;
 const RELOAD_MS = 1000;
 const ENEMY_DEFS = {
@@ -110,6 +112,12 @@ const Audio = {
   },
   slowOff(){
     if(!this.ambient) return; this.ambient.f.frequency.value=400; this.ambient.o.frequency.value=55; this.ambient.g.gain.value=this.ambient.base;
+  },
+  thunder(){
+    if(!this.ctx) return;
+    const t=this.ctx.currentTime, src=this.noise(1.5), g=this.ctx.createGain(), f=this.ctx.createBiquadFilter();
+    f.type='lowpass'; f.frequency.value=200; src.connect(f); f.connect(g); g.connect(this.master);
+    this.env(g,t,0.05,1.4,0.5); src.start(t); src.stop(t+1.6);
   },
 };
 
@@ -344,9 +352,18 @@ class Enemy extends Phaser.GameObjects.Container {
     const icon=this.scene.add.text(0,-body.height*0.5-6,this.def.icon,{fontSize:'12px',color:'#fff',fontStyle:'bold',backgroundColor:'#000',padding:{x:3,y:1}}).setOrigin(0.5);
     this.add(icon);
     this.setSize(body.width,body.height);
-    // entrance
-    this.setScale(0.2); this.alpha=0;
-    this.scene.tweens.add({targets:this,scaleX:1,scaleY:1,alpha:1,duration:180,ease:'Back.out'});
+    this.setDepth(10);
+    this.silUntil=0; this.flashUntil=0;
+    // shadow under feet
+    this.shadow=this.scene.add.ellipse(x,y+body.height/2-4,body.width,8,0x000000,0.35).setDepth(9);
+    // entrance: dark silhouette warning then reveal
+    this.setScale(0.2);
+    if(type!=='ghost'){
+      this.body.setTint(0x000000); this.alpha=0.5; this.silUntil=this.scene.time.now+300;
+      this.scene.time.delayedCall(300,()=>{ if(!this.active) return;
+        this.scene.tweens.add({targets:this,alpha:1,duration:100,onComplete:()=>{ if(this.body) this.body.clearTint(); }}); });
+    } else { this.alpha=0; this.scene.tweens.add({targets:this,alpha:1,duration:180}); }
+    this.scene.tweens.add({targets:this,scaleX:1,scaleY:1,duration:180,ease:'Back.out'});
     // cover pop: emerge from below line
     this.y=y+40; this.scene.tweens.add({targets:this,y,duration:200,ease:'Quad.out'});
   }
@@ -362,7 +379,8 @@ class Enemy extends Phaser.GameObjects.Container {
     scene.spawnBlood(this.x,this.y);
     if(this.hp<=0){ this.die(scene); return true; }
     // tank hit flash
-    this.body.setTintFill(0xffffff); this.scene.time.delayedCall(80,()=>this.body&&this.body.clearTint());
+    this.body.setTintFill(0xffffff); this.flashUntil=this.scene.time.now+80;
+    this.scene.time.delayedCall(80,()=>this.body&&this.body.clearTint());
     return false;
   }
   die(scene){
@@ -377,7 +395,7 @@ class Enemy extends Phaser.GameObjects.Container {
     if(!this.innocent) this.scene.takeDamage(this.def.dmg);
     this.scene.tweens.add({targets:this,alpha:0,duration:200,onComplete:()=>this.destroy()});
   }
-  destroy(fromScene){ super.destroy(fromScene); }
+  destroy(fromScene){ if(this.shadow) this.shadow.destroy(); super.destroy(fromScene); }
 }
 class Soldier extends Enemy { constructor(s,x,y){ super(s,x,y,'soldier'); } }
 class Sniper  extends Enemy { constructor(s,x,y){ super(s,x,y,'sniper'); } }
@@ -440,7 +458,7 @@ class GameScene extends Phaser.Scene {
   constructor(){ super('Game'); }
   create(){
     Audio.resume();
-    this.add.image(BASE_W/2,BASE_H/2,'bg').setDisplaySize(BASE_W,BASE_H);
+    this.buildScenery();
     // stats
     this.stats={ hp:100, ammo:CLIP_SIZE, reloading:false, score:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
@@ -486,6 +504,170 @@ class GameScene extends Phaser.Scene {
     this.maxConcurrent=Math.min(6,2+Math.floor(this.stats.round/2));
     this.roundInnocentsSpawned=0;
     this.roundInnocentsCount=Math.max(1,Math.floor(this.stats.round/2)+1);
+  }
+
+  /* ---------- scenery (visual only, no mechanics) ---------- */
+  buildScenery(){
+    const W=BASE_W,H=BASE_H, groundY=H*0.72;
+    const rng=mulberry32(20240729);
+    // ---- SKY fixed (depth 0) ----
+    const sky=this.add.graphics().setDepth(0);
+    for(let y=0;y<H;y++){ const t=y/H; const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x0a0e1a,0x1a2238,t);
+      sky.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); sky.fillRect(0,y,W,1); }
+    for(let i=0;i<50;i++){ sky.fillStyle(0xffffff,0.3+rng()*0.4); sky.fillCircle(rng()*W,rng()*H*0.33,1); }
+    const mcx=W-120,mcy=110;
+    sky.fillStyle(0xE8E8D0,0.08); sky.fillCircle(mcx,mcy,60);
+    sky.fillStyle(0xE8E8D0,1); sky.fillCircle(mcx,mcy,35);
+    sky.fillStyle(0x11161e,1); sky.fillRect(0,groundY,W,H-groundY);
+    sky.fillStyle(0x1a2230,1); sky.fillRect(0,groundY,W,4);
+
+    // ---- LAYER BACK distant (depth 1) ----
+    this.layerBack=this.add.container(0,0).setDepth(1);
+    const bg=this.add.graphics();
+    for(let i=0;i<14;i++){ const x=rng()*W, w=20+rng()*40, h=180+rng()*220, yy=groundY-h;
+      bg.fillStyle(0x070a10,0.3); bg.fillRect(x,yy,w,h);
+      for(let wy=yy+10;wy<yy+h-10;wy+=14){ if(rng()<0.15){ bg.fillStyle(0x202830,0.3); bg.fillRect(x+2,wy,2,3); } } }
+    this.layerBack.add(bg);
+
+    // ---- FOG (depth 2) ----
+    const fog=this.add.graphics().setDepth(2);
+    for(let i=0;i<150;i++){ const t=i/150; fog.fillStyle(0x0A1520,0.6*(1-t)); fog.fillRect(0,groundY-150+i,W,1); }
+
+    // ---- LAYER MID (depth 3) ----
+    this.layerMid=this.add.container(0,0).setDepth(3);
+    const mg=this.add.graphics();
+    this.blinkers=[];
+    const blds=[[60,180,120],[200,260,160],[300,140,100],[420,320,200],[560,200,130],[720,280,180],[860,160,110],[980,340,210],[1120,180,120],[1240,240,150]];
+    const sizes=[{w:6,h:8},{w:9,h:12},{w:16,h:8}];
+    blds.forEach(([x,h,w],bi)=>{
+      const yy=groundY-h;
+      mg.fillStyle(0x070a10,1); mg.fillRect(x,yy,w,h);
+      for(let wy=yy+12;wy<yy+h-8;wy+=22){
+        for(let wx=x+8;wx<x+w-8;wx+=18){
+          const r=rng(); let col;
+          if(r<0.40) col=0xC8A84B; else if(r<0.75) col=0x0D1117; else if(r<0.90) col=0x4A7FA5; else col=0x8B2020;
+          const sz=sizes[Math.floor(rng()*3)];
+          mg.fillStyle(col, col===0x0D1117?0.5:0.85); mg.fillRect(wx,wy,sz.w,sz.h);
+          if(col!==0x0D1117 && rng()<0.05){
+            const rect=this.add.rectangle(wx+sz.w/2,wy+sz.h/2,sz.w,sz.h,col,0.85);
+            this.layerMid.add(rect);
+            this.blinkers.push({rect,on:true,col,next:Phaser.Math.Between(2000,6000)});
+          }
+        }
+      }
+      this.drawRoofDetails(mg,x,yy,w,rng);
+      if(bi<2) this.drawFireEscape(mg,x,yy,h);
+    });
+    this.layerMid.add(mg);
+
+    // ---- WIRES (depth 4) ----
+    const wires=this.add.graphics().setDepth(4);
+    wires.lineStyle(1,0x222222,1);
+    for(let i=0;i<3;i++){ const y=groundY-180-i*60;
+      wires.beginPath(); wires.moveTo(0,y); wires.lineTo(W*0.5,y+15); wires.lineTo(W,y); wires.strokePath(); }
+
+    // ---- RAIN (back depth 5 / front depth 16) ----
+    this.rainBack=this.add.graphics().setDepth(5);
+    this.rainFront=this.add.graphics().setDepth(16);
+    this.dropsBack=Array.from({length:60},()=>({x:Phaser.Math.Between(0,W),y:Phaser.Math.Between(0,H),speed:Phaser.Math.Between(6,9),length:Phaser.Math.Between(8,12),alpha:Phaser.Math.FloatBetween(0.08,0.15)}));
+    this.dropsFront=Array.from({length:90},()=>({x:Phaser.Math.Between(0,W),y:Phaser.Math.Between(0,H),speed:Phaser.Math.Between(10,16),length:Phaser.Math.Between(14,22),alpha:Phaser.Math.FloatBetween(0.2,0.35)}));
+
+    // ---- LAYER FRONT wall + props (depth 15) ----
+    this.layerFront=this.add.container(0,0).setDepth(15);
+    const fg=this.add.graphics();
+    const wallH=90, wallY=H-wallH;
+    fg.fillStyle(0x1a1d22,1); fg.fillRect(0,wallY,W,wallH);
+    fg.lineStyle(1,0x2a2d33,0.5);
+    for(let i=1;i<6;i++){ fg.beginPath(); fg.moveTo(0,wallY+i*15); fg.lineTo(W,wallY+i*15); fg.strokePath(); }
+    this.drawBarrel(fg,180,wallY);
+    this.drawBoxes(fg,880,wallY);
+    this.drawVent(fg,1100,wallY);
+    for(let i=0;i<4;i++){ const px=80+rng()*(W-160); fg.fillStyle(0x1A2A3A,0.4); fg.fillEllipse(px,wallY+60,60,8); fg.fillStyle(0x0A1018,0.5); fg.fillRect(px-30,wallY+60,60,2); }
+    this.layerFront.add(fg);
+
+    // ---- SPOTLIGHTS (depth 17) ----
+    this.spotlights=this.add.graphics().setDepth(17);
+    this.drawSpotlight(this.spotlights,320,wallY);
+    this.drawSpotlight(this.spotlights,960,wallY);
+
+    // ---- STEAM (depth 14) ----
+    this.steamG=this.add.graphics().setDepth(14);
+    this.steamPoints=[{x:300,y:H-90},{x:760,y:H-90}];
+    this.steamParticles=[];
+
+    // ---- lightning schedule ----
+    this.time.delayedCall(Phaser.Math.Between(8000,20000),()=>this.triggerLightning());
+  }
+  drawRoofDetails(g,x,yy,w,rng){
+    if(rng()<0.5){ const tx=x+w*0.3; g.fillStyle(0x3A3A3A,1); g.fillRect(tx,yy-24,8,24); g.fillStyle(0x2A2A2A,1); g.fillEllipse(tx+4,yy-24,20,10); }
+    if(rng()<0.5){ const ax=x+w*0.7; g.lineStyle(1,0x2A2A2A,1); g.beginPath(); g.moveTo(ax,yy); g.lineTo(ax,yy-30); g.moveTo(ax-6,yy-12); g.lineTo(ax+6,yy-12); g.moveTo(ax-4,yy-20); g.lineTo(ax+4,yy-20); g.strokePath(); }
+    if(rng()<0.4){ const cx=x+w*0.5; g.fillStyle(0x2A2A2A,1); g.fillRect(cx,yy-10,14,10); g.lineStyle(1,0x444444,1); g.strokeRect(cx,yy-10,14,10);
+      for(let i=0;i<3;i++){ g.beginPath(); g.moveTo(cx+2+i*4,yy-8); g.lineTo(cx+2+i*4,yy-2); g.strokePath(); } }
+  }
+  drawFireEscape(g,x,yy,h){
+    g.fillStyle(0x2A2A2A,1); g.lineStyle(1,0x444444,1);
+    const step=(h-40)/6;
+    for(let i=0;i<6;i++){ const fy=yy+20+i*step; g.fillRect(x-6,fy,6,8); g.strokeRect(x-6,fy,6,8); }
+    g.lineStyle(1,0x444444,1); g.beginPath(); g.moveTo(x-3,yy+20); g.lineTo(x-3,yy+20+5*step); g.strokePath();
+  }
+  drawBarrel(g,x,baseY){
+    g.fillStyle(0x4A2A1A,1); g.fillRoundedRect(x,baseY-40,30,40,4);
+    g.lineStyle(1,0x2A1A0A,1); g.strokeRoundedRect(x,baseY-40,30,40,4);
+    g.beginPath(); g.moveTo(x,baseY-28); g.lineTo(x+30,baseY-28); g.moveTo(x,baseY-14); g.lineTo(x+30,baseY-14); g.strokePath();
+  }
+  drawBoxes(g,x,baseY){
+    g.fillStyle(0x2A3A4A,1); g.fillRect(x,baseY-22,34,22); g.fillRect(x+6,baseY-44,34,22);
+    g.lineStyle(1,0x1A2A3A,1); g.strokeRect(x,baseY-22,34,22); g.strokeRect(x+6,baseY-44,34,22);
+  }
+  drawVent(g,x,baseY){
+    g.fillStyle(0x1A1D22,1); g.fillRect(x,baseY-30,40,30);
+    g.lineStyle(1,0x33373D,1);
+    for(let i=0;i<5;i++){ g.beginPath(); g.moveTo(x+2,baseY-26+i*5); g.lineTo(x+38,baseY-26+i*5); g.strokePath(); }
+  }
+  drawSpotlight(g,bx,by){
+    for(let i=0;i<6;i++){ g.fillStyle(0xFFDC64,0.06*(1-i/6));
+      g.beginPath(); g.moveTo(bx,by); g.lineTo(bx-100-i*8,by-400+i*20); g.lineTo(bx+100+i*8,by-400+i*20); g.closePath(); g.fillPath(); }
+  }
+  updateScenery(delta){
+    const mx=this.input.mousePointer.x, cx=this.scale.width/2, ratio=(mx-cx)/cx;
+    this.layerBack.x=ratio*-15; this.layerMid.x=ratio*-30; this.layerFront.x=ratio*-55;
+    const now=this.time.now;
+    this.blinkers.forEach(b=>{ if(now>b.next){ b.on=!b.on; b.rect.fillColor=b.on?b.col:0x0D1117; b.rect.fillAlpha=b.on?0.85:0.4; b.next=now+Phaser.Math.Between(2000,6000); } });
+    this.updateRain(this.rainBack,this.dropsBack);
+    this.updateRain(this.rainFront,this.dropsFront);
+    this.updateSteam();
+    // shadows + depth tint per enemy
+    const topY=BASE_H*0.45, botY=BASE_H*0.66;
+    this.enemies.forEach(e=>{
+      if(!e.shadow||!e.body) return;
+      e.shadow.x=e.x; e.shadow.y=e.y+e.height/2-4;
+      if(e.silUntil&&now<e.silUntil) return;
+      if(e.flashUntil&&now<e.flashUntil) return;
+      const t=Phaser.Math.Clamp((e.y-topY)/(botY-topY),0,1);
+      const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x8899AA,0xFFFFFF,t);
+      e.body.setTint(Phaser.Display.Color.GetColor(c[0],c[1],c[2]));
+    });
+  }
+  updateRain(g,drops){
+    const W=BASE_W,H=BASE_H; g.clear();
+    drops.forEach(d=>{ d.y+=d.speed; d.x+=d.speed*0.2; if(d.y>H){ d.y=-d.length; d.x=Phaser.Math.Between(0,W); }
+      g.lineStyle(1,0xAAAACC,d.alpha); g.strokeLineShape(new Phaser.Geom.Line(d.x,d.y,d.x+d.length*0.2,d.y+d.length)); });
+  }
+  updateSteam(){
+    const g=this.steamG; g.clear();
+    if(this.steamParticles.length<40 && Math.random()<0.4){ const p=this.steamPoints[Math.floor(Math.random()*2)];
+      this.steamParticles.push({x:p.x,y:p.y,vx:Phaser.Math.FloatBetween(-0.3,0.3),vy:Phaser.Math.FloatBetween(0.5,1),alpha:0.3,r:Phaser.Math.Between(2,4)}); }
+    this.steamParticles=this.steamParticles.filter(p=>p.alpha>0);
+    this.steamParticles.forEach(p=>{ p.y-=p.vy; p.x+=p.vx; p.alpha-=0.006; g.fillStyle(0xffffff,p.alpha); g.fillCircle(p.x,p.y,p.r); });
+  }
+  triggerLightning(){
+    if(this.over||this.paused){ this.time.delayedCall(Phaser.Math.Between(15000,35000),()=>this.triggerLightning()); return; }
+    const flash=this.add.rectangle(BASE_W/2,BASE_H/2,BASE_W,BASE_H,0xffffff,0).setDepth(999);
+    this.tweens.add({targets:flash,alpha:{from:0,to:0.7},duration:40,yoyo:true,onComplete:()=>{
+      this.time.delayedCall(60,()=>{ this.tweens.add({targets:flash,alpha:{from:0,to:0.3},duration:30,yoyo:true,onComplete:()=>flash.destroy()}); });
+    }});
+    Audio.thunder();
+    this.time.delayedCall(Phaser.Math.Between(15000,35000),()=>this.triggerLightning());
   }
 
   /* ---------- spawning ---------- */
@@ -679,6 +861,7 @@ class GameScene extends Phaser.Scene {
   /* ---------- main loop ---------- */
   update(time,delta){
     if(this.paused||this.over) return;
+    this.updateScenery(delta);
     // slow factor for new spawns handled per-enemy; existing handled via slowUntil check
     // spawn enemies
     this.spawnTimer-=delta;
