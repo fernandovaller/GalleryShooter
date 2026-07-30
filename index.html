@@ -20,7 +20,7 @@
    ============================================================ */
 
 const BASE_W = 1024, BASE_H = 576;
-const MAX_ROUNDS = 10;
+const MAX_ROUNDS = 999;
 /* seeded RNG so procedural scenery is stable across reloads */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 const CLIP_SIZE = 30;
@@ -43,7 +43,7 @@ const ITEM_DEFS = {
 /* round difficulty scale: weights per type, hp multiplier, visibility multiplier, speed multiplier */
 function getRoundScale(r){
   const clamp=v=>Math.max(0,v);
-  const t=Math.min(1,(r-1)/(MAX_ROUNDS-1)); // 0 -> 1 across campaign
+  const t=Math.min(1,(r-1)/20); // 0 -> 1 across first 20 rounds, then plateau
   return {
     hpMult: 1+t*0.6,          // hp up to 1.6x
     visMult: 1-t*0.25,        // visibility slightly shorter
@@ -60,6 +60,22 @@ function getRoundScale(r){
     },
     innocentRate: 0.15+t*0.10, // fewer civilians
     innocentsCount: Math.max(1,Math.floor(r/3)+1),
+  };
+}
+function getSpawnBounds(r){
+  const t=Math.min(1,(r-1)/10); // expands over first 10 rounds
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  return {
+    enemyXMin: Math.round(lerp(230,80,t)),
+    enemyXMax: Math.round(lerp(BASE_W-230,BASE_W-80,t)),
+    enemyYMin: Math.round(lerp(BASE_H*0.50,BASE_H*0.40,t)),
+    enemyYMax: Math.round(lerp(BASE_H*0.62,BASE_H*0.66,t)),
+    enemyYSuicideMin: Math.round(lerp(BASE_H*0.62,BASE_H*0.58,t)),
+    enemyYSuicideMax: BASE_H*0.72,
+    itemXMin: Math.round(lerp(240,100,t)),
+    itemXMax: Math.round(lerp(BASE_W-240,BASE_W-100,t)),
+    itemYMin: Math.round(lerp(BASE_H*0.42,BASE_H*0.38,t)),
+    itemYMax: Math.round(lerp(BASE_H*0.62,BASE_H*0.66,t)),
   };
 }
 
@@ -320,10 +336,45 @@ class BootScene extends Phaser.Scene {
     g.destroy();
   }
   makeItemTextures(){
-    Object.keys(ITEM_DEFS).forEach(k=>{
-      const g=this.add.graphics(); g.fillStyle(0xffffff,0.15); g.fillCircle(24,24,24);
-      g.lineStyle(2,0xffffff,0.8); g.strokeCircle(24,24,24); g.generateTexture('item_'+k,48,48); g.destroy();
-    });
+    const g=this.add.graphics();
+    // ---- MED : red/white pill capsule ----
+    {
+      g.fillStyle(0xcc2020,1); g.fillRoundedRect(9,6,30,36,15);
+      g.fillStyle(0xffffff,1); g.fillRect(9,22,30,4);
+      g.lineStyle(2,0x880000,1); g.strokeRoundedRect(9,6,30,36,15);
+      g.generateTexture('item_med',48,48); g.clear();
+    }
+    // ---- AMMO : olive ammo box ----
+    {
+      g.fillStyle(0x5a6b3a,1); g.fillRoundedRect(6,10,36,28,4);
+      g.fillStyle(0x3a4a22,1); g.fillRect(12,16,24,4); g.fillRect(12,24,24,4);
+      g.lineStyle(2,0x2a3a1a,1); g.strokeRoundedRect(6,10,36,28,4);
+      g.generateTexture('item_ammo',48,48); g.clear();
+    }
+    // ---- SHIELD : blue metallic shield ----
+    {
+      g.fillStyle(0x2a7ad9,1);
+      g.beginPath(); g.moveTo(24,4); g.lineTo(40,10); g.lineTo(38,28); g.lineTo(24,44); g.lineTo(10,28); g.lineTo(8,10); g.closePath(); g.fillPath();
+      g.lineStyle(2,0x88ccff,1); g.strokePath();
+      g.fillStyle(0x1a5aa9,1); g.beginPath(); g.moveTo(24,10); g.lineTo(32,14); g.lineTo(31,24); g.lineTo(24,34); g.lineTo(17,24); g.lineTo(16,14); g.closePath(); g.fillPath();
+      g.generateTexture('item_shield',48,48); g.clear();
+    }
+    // ---- SLOW : silver clock ----
+    {
+      g.fillStyle(0x888899,1); g.fillCircle(24,24,18);
+      g.lineStyle(2,0xccccdd,1); g.strokeCircle(24,24,18);
+      g.fillStyle(0x111111,1); g.fillRect(24,12,2,12); g.fillRect(24,22,8,2);
+      g.generateTexture('item_slow',48,48); g.clear();
+    }
+    // ---- NADE : dark green grenade ----
+    {
+      g.fillStyle(0x3a4a2a,1); g.fillEllipse(24,28,18,20);
+      g.lineStyle(2,0x2a3a1a,1); g.strokeEllipse(24,28,18,20);
+      g.fillStyle(0x5a6a4a,1); g.fillRect(20,6,8,12);
+      g.fillStyle(0x222222,1); g.fillCircle(24,6,4);
+      g.generateTexture('item_nade',48,48); g.clear();
+    }
+    g.destroy();
   }
 }
 
@@ -346,10 +397,10 @@ class MenuScene extends Phaser.Scene {
     btn.on('pointerdown',()=>{ Audio.init(); Audio.resume(); Audio.startAmbient(); this.scene.start('Game'); });
 
     const help=[
-      '🎯  Clique esquerdo: atirar',
-      '🔁  R: recarregar  ('+CLIP_SIZE+' balas / pente)',
-      '🖱️  Clique em itens para coletar',
-      '⏸️  ESC / P: pausar',
+      '[>] Clique esquerdo: atirar',
+      '[R] Recarregar  ('+CLIP_SIZE+' balas / pente)',
+      '[M] Clique em itens para coletar',
+      '[P] ESC / P: pausar',
       '',
       'Elimine soldados, snipers, tanques, suicidas e fantasmas.',
       'Cuidado com os CIVIS — azul/amarelo, sem arma.',
@@ -462,8 +513,7 @@ class PowerUp extends Phaser.GameObjects.Container {
     super(scene,x,y); scene.add.existing(this);
     this.kind=kind; this.born=scene.time.now; this.life=ITEM_DEFS[kind].life;
     const bg=scene.add.image(0,0,'item_'+kind);
-    const txt=scene.add.text(0,0,ITEM_DEFS[kind].icon,{fontSize:'28px'}).setOrigin(0.5);
-    this.add([bg,txt]); this.setSize(48,48); this.setDepth(20);
+    this.add([bg]); this.setSize(48,48); this.setDepth(20);
     // collection handled by GameScene.tryShoot (cursor hidden, single handler avoids double-collect)
     scene.tweens.add({targets:this,scaleX:1.1,scaleY:1.1,duration:400,yoyo:true,repeat:-1});
   }
@@ -486,7 +536,7 @@ class GameScene extends Phaser.Scene {
     // stats
     this.stats={ hp:100, ammo:CLIP_SIZE, reloading:false, score:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
-      shield:0, slowUntil:0, continues:3 };
+      shield:0, slowUntil:0, continues:3, lastContinueScore:0 };
     this.enemies=[]; this.activeItem=null; this.paused=false; this.over=false;
     this.roundScale=getRoundScale(1);
 
@@ -711,8 +761,9 @@ class GameScene extends Phaser.Scene {
       const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='suicide' && v>0);
       type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'soldier';
     }
-    const x=Phaser.Math.Between(230,BASE_W-230);
-    const y=(type==='suicide')?Phaser.Math.Between(BASE_H*0.66,BASE_H*0.72):Phaser.Math.Between(BASE_H*0.45,BASE_H*0.66);
+    const sb=getSpawnBounds(this.stats.round);
+    const x=Phaser.Math.Between(sb.enemyXMin,sb.enemyXMax);
+    const y=(type==='suicide')?Phaser.Math.Between(sb.enemyYSuicideMin,sb.enemyYSuicideMax):Phaser.Math.Between(sb.enemyYMin,sb.enemyYMax);
     let e;
     if(type==='soldier') e=new Soldier(this,x,y);
     else if(type==='sniper') e=new Sniper(this,x,y);
@@ -798,8 +849,20 @@ class GameScene extends Phaser.Scene {
   onEnemyKilled(e){
     this.stats.kills++;
     this.stats.score+=e.def.pts*this.stats.combo;
+    const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/10000);
+    if(earned>0){
+      this.stats.continues+=earned;
+      this.stats.lastContinueScore+=earned*10000;
+      this.showContinueEarnedBanner(earned);
+    }
     this.spawnBlood(e.x,e.y,true);
     this.ui.refresh();
+  }
+  showContinueEarnedBanner(earned){
+    const b=this.add.text(BASE_W/2,BASE_H/2,'CONTINUE GANHO!',{fontSize:'56px',color:'#7fff7f',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
+    const sub=this.add.text(BASE_W/2,BASE_H/2+50,'+'+earned+'  |  Total: '+this.stats.continues,{fontSize:'28px',color:'#fff'}).setOrigin(0.5).setDepth(95);
+    this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1800,onComplete:()=>{ b.destroy(); sub.destroy(); }});
+    Audio.item();
   }
 
   /* ---------- items ---------- */
@@ -807,7 +870,8 @@ class GameScene extends Phaser.Scene {
     if(this.activeItem) return;
     const kinds=Object.keys(ITEM_DEFS);
     const kind=Phaser.Utils.Array.GetRandom(kinds);
-    const x=Phaser.Math.Between(240,BASE_W-240), y=Phaser.Math.Between(BASE_H*0.42,BASE_H*0.62);
+    const sb=getSpawnBounds(this.stats.round);
+    const x=Phaser.Math.Between(sb.itemXMin,sb.itemXMax), y=Phaser.Math.Between(sb.itemYMin,sb.itemYMax);
     this.activeItem=new PowerUp(this,x,y,kind);
   }
   collectItem(item){
@@ -926,8 +990,6 @@ class GameScene extends Phaser.Scene {
   }
   nextRound(){
     this.roundActive=false;
-    if(this.stats.round>=MAX_ROUNDS){ this.victory(); return; }
-    // interval banner
     const sub=this.add.text(BASE_W/2,BASE_H/2,'ROUND '+this.stats.round+' CONCLUÍDO\nPontos: '+this.stats.score,{fontSize:'36px',color:'#7fff7f',align:'center',fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
     this.time.delayedCall(3000,()=>{
       sub.destroy();
@@ -980,34 +1042,34 @@ class UIScene extends Phaser.Scene {
     this.hpBg=this.add.rectangle(20,40,220,18,0x330000).setOrigin(0,0.5).setStrokeStyle(1,0xffffff,0.4);
     this.hpFill=this.add.rectangle(20,40,220,18,0xff2020).setOrigin(0,0.5);
     this.hpTxt=this.add.text(130,40,'100',{fontSize:'14px',color:'#fff'}).setOrigin(0.5);
-    this.shieldTxt=this.add.text(250,40,'🛡️0',{fontSize:'16px',color:'#7fdfff'}).setOrigin(0,0.5);
+    this.shieldTxt=this.add.text(250,40,'S:0',{fontSize:'16px',color:'#7fdfff'}).setOrigin(0,0.5);
 
     // score + combo
     this.scoreTxt=this.add.text(BASE_W-20,20,'0',{fontSize:'28px',color:'#ffdd40',fontStyle:'bold'}).setOrigin(1,0);
     this.comboTxt=this.add.text(BASE_W-20,52,'x1',{fontSize:'22px',color:'#ffffff'}).setOrigin(1,0);
 
     // ammo
-    this.ammoTxt=this.add.text(20,BASE_H-30,'🔫 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
+    this.ammoTxt=this.add.text(20,BASE_H-30,'AMMO 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
     this.reloadTxt=this.add.text(20,BASE_H-55,'RECARREGANDO...',{fontSize:'18px',color:'#ff8030'}).setOrigin(0,1).setVisible(false);
 
     // round
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
     // continues
-    this.continueTxt=this.add.text(BASE_W/2,52,'♥ x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
+    this.continueTxt=this.add.text(BASE_W/2,52,'CON x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
   }
   refresh(){
     const s=this.s;
     const pct=Math.max(0,s.hp)/100;
     this.hpFill.scaleX=pct; this.hpFill.x=20;
     this.hpTxt.setText(Math.max(0,s.hp|0));
-    this.shieldTxt.setText('🛡️'+s.shield);
+    this.shieldTxt.setText('S:'+s.shield);
     this.scoreTxt.setText(s.score);
     this.comboTxt.setText('x'+s.combo);
     this.comboTxt.setColor(s.combo>1?'#ff8030':'#ffffff');
-    this.ammoTxt.setText('🔫 '+s.ammo+' / '+CLIP_SIZE);
+    this.ammoTxt.setText('AMMO '+s.ammo+' / '+CLIP_SIZE);
     this.reloadTxt.setVisible(s.reloading);
     this.roundTxt.setText('ROUND '+s.round);
-    this.continueTxt.setText('♥ x'+s.continues);
+    this.continueTxt.setText('CON x'+s.continues);
   }
 }
 
@@ -1044,7 +1106,7 @@ class GameOverScene extends Phaser.Scene {
     const acc=this.stats.shotsFired>0?Math.round(this.stats.shotsHit/this.stats.shotsFired*100):0;
     const lines=[
       'Pontuação final: '+this.stats.score,
-      'Round alcançado: '+this.stats.round+(this.win?' / '+MAX_ROUNDS:''),
+      'Round alcançado: '+this.stats.round,
       'Inimigos eliminados: '+this.stats.kills,
       'Inocentes mortos: '+this.stats.innocentsKilled,
       'Precisão: '+acc+'%',
