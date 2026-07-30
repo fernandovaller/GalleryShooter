@@ -953,6 +953,7 @@ class GameScene extends Phaser.Scene {
     this.steamParticles.forEach(p=>{ p.y-=p.vy; p.x+=p.vx; p.alpha-=0.006; g.fillStyle(0xffffff,p.alpha); g.fillCircle(p.x,p.y,p.r); });
   }
   updateSpotlight(delta){
+    const W=BASE_W;
     const s=this.spotlight, g=this.spotlightG; if(!g) return;
     s.timer += delta;
     if(s.state==='off'){
