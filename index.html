@@ -585,11 +585,6 @@ class GameScene extends Phaser.Scene {
     for(let i=0;i<4;i++){ const px=80+rng()*(W-160); fg.fillStyle(0x1A2A3A,0.4); fg.fillEllipse(px,wallY+60,60,8); fg.fillStyle(0x0A1018,0.5); fg.fillRect(px-30,wallY+60,60,2); }
     this.layerFront.add(fg);
 
-    // ---- SPOTLIGHTS (depth 17) ----
-    this.spotlights=this.add.graphics().setDepth(17);
-    this.drawSpotlight(this.spotlights,320,wallY);
-    this.drawSpotlight(this.spotlights,960,wallY);
-
     // ---- STEAM (depth 14) ----
     this.steamG=this.add.graphics().setDepth(14);
     this.steamPoints=[{x:300,y:H-90},{x:760,y:H-90}];
@@ -624,10 +619,6 @@ class GameScene extends Phaser.Scene {
     g.lineStyle(1,0x33373D,1);
     for(let i=0;i<5;i++){ g.beginPath(); g.moveTo(x+2,baseY-26+i*5); g.lineTo(x+38,baseY-26+i*5); g.strokePath(); }
   }
-  drawSpotlight(g,bx,by){
-    for(let i=0;i<6;i++){ g.fillStyle(0xFFDC64,0.06*(1-i/6));
-      g.beginPath(); g.moveTo(bx,by); g.lineTo(bx-100-i*8,by-400+i*20); g.lineTo(bx+100+i*8,by-400+i*20); g.closePath(); g.fillPath(); }
-  }
   updateScenery(delta){
     const mx=this.input.mousePointer.x, cx=this.scale.width/2, ratio=(mx-cx)/cx;
     this.layerBack.x=ratio*-15; this.layerMid.x=ratio*-30; this.layerFront.x=ratio*-55;
@@ -644,8 +635,12 @@ class GameScene extends Phaser.Scene {
       if(e.silUntil&&now<e.silUntil) return;
       if(e.flashUntil&&now<e.flashUntil) return;
       const t=Phaser.Math.Clamp((e.y-topY)/(botY-topY),0,1);
-      const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x8899AA,0xFFFFFF,t);
-      e.body.setTint(Phaser.Display.Color.GetColor(c[0],c[1],c[2]));
+      const c=Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(0x8899AA),
+        Phaser.Display.Color.ValueToColor(0xFFFFFF),
+        1, t
+      );
+      e.body.setTint(Phaser.Display.Color.GetColor(c.r,c.g,c.b));
     });
   }
   updateRain(g,drops){
