@@ -711,7 +711,7 @@ class GameScene extends Phaser.Scene {
       const entries=Object.entries(this.roundScale.weights).filter(([k,v])=>k!=='suicide' && v>0);
       type=entries.length?entries[Math.floor(Math.random()*entries.length)][0]:'soldier';
     }
-    const x=Phaser.Math.Between(286,BASE_W-286);
+    const x=Phaser.Math.Between(230,BASE_W-230);
     const y=(type==='suicide')?Phaser.Math.Between(BASE_H*0.66,BASE_H*0.72):Phaser.Math.Between(BASE_H*0.45,BASE_H*0.66);
     let e;
     if(type==='soldier') e=new Soldier(this,x,y);
@@ -807,7 +807,7 @@ class GameScene extends Phaser.Scene {
     if(this.activeItem) return;
     const kinds=Object.keys(ITEM_DEFS);
     const kind=Phaser.Utils.Array.GetRandom(kinds);
-    const x=Phaser.Math.Between(300,BASE_W-300), y=Phaser.Math.Between(BASE_H*0.42,BASE_H*0.62);
+    const x=Phaser.Math.Between(240,BASE_W-240), y=Phaser.Math.Between(BASE_H*0.42,BASE_H*0.62);
     this.activeItem=new PowerUp(this,x,y,kind);
   }
   collectItem(item){
