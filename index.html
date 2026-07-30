@@ -213,7 +213,8 @@ class BootScene extends Phaser.Scene {
     // ground
     g.fillStyle(0x11161e,1); g.fillRect(0,BASE_H*0.72,BASE_W,BASE_H*0.28);
     g.fillStyle(0x1a2230,1); g.fillRect(0,BASE_H*0.72,BASE_W,4);
-    // buildings silhouettes
+    // buildings silhouettes removed for cleaner look
+    /*
     const blds=[[60,180,120],[200,260,160],[300,140,100],[420,320,200],[560,200,130],[720,280,180],
       [860,160,110],[980,340,210],[1120,180,120],[1240,240,150]];
     blds.forEach(([x,h,w])=>{
@@ -226,6 +227,7 @@ class BootScene extends Phaser.Scene {
         }
       }
     });
+    */
     // distant haze
     g.fillStyle(0x2a3a55,0.12); g.fillRect(0,BASE_H*0.55,BASE_W,60);
     g.generateTexture('bg',BASE_W,BASE_H); g.destroy();
@@ -574,7 +576,8 @@ class MenuScene extends Phaser.Scene {
     const craters=[[-15,-8,8],[8,-12,6],[-4,10,7],[16,4,5],[-18,14,4],[2,-4,3],[12,16,5],[-8,-18,4]];
     craters.forEach(([dx,dy,cr])=>{ mg.fillStyle(0xa0a8b8,0.4); mg.fillCircle(moonX+dx,moonY+dy,cr); mg.fillStyle(0x888c9c,0.3); mg.fillCircle(moonX+dx+1,moonY+dy+1,cr-2); });
 
-    // building silhouettes (static, mid layer)
+    // building silhouettes removed for cleaner look
+    /*
     const blds=[[60,180,120],[200,260,160],[300,140,100],[420,320,200],[560,200,130],[720,280,180],[860,160,110],[980,340,210],[1120,180,120],[1240,240,150]];
     const bldG=this.add.graphics().setDepth(1);
     blds.forEach(([x,h,w])=>{
@@ -586,6 +589,7 @@ class MenuScene extends Phaser.Scene {
         }
       }
     });
+    */
 
     // rain (2 layers)
     this.menuRainB=this.add.graphics().setDepth(5);
@@ -1016,6 +1020,7 @@ class GameScene extends Phaser.Scene {
 
     // ---- LAYER BACK distant (depth 1) ----
     this.layerBack=this.add.container(0,0).setDepth(1);
+    /* buildings removed for cleaner look
     const bg=this.add.graphics();
     for(let i=0;i<18;i++){ const x=rng()*W, w=16+rng()*50, h=160+rng()*280, yy=groundY-h;
       // varied silhouette tops: stepped and pitched
@@ -1028,6 +1033,7 @@ class GameScene extends Phaser.Scene {
       if(h>300 && rng()<0.5){ bg.lineStyle(1,0x151820,0.5); bg.beginPath(); bg.moveTo(x+w/2,yy); bg.lineTo(x+w/2,yy-20); bg.strokePath(); }
     }
     this.layerBack.add(bg);
+    */
 
     // ---- FOG (depth 2) ----
     const fog=this.add.graphics().setDepth(2);
@@ -1038,6 +1044,8 @@ class GameScene extends Phaser.Scene {
 
     // ---- LAYER MID (depth 3) ----
     this.layerMid=this.add.container(0,0).setDepth(3);
+    this.blinkers=[];
+    /* buildings removed for cleaner look
     const mg=this.add.graphics();
     this.blinkers=[];
     const blds=[[60,180,120],[200,260,160],[300,140,100],[420,320,200],[560,200,130],[720,280,180],[860,160,110],[980,340,210],[1120,180,120],[1240,240,150]];
@@ -1062,6 +1070,7 @@ class GameScene extends Phaser.Scene {
       if(bi<2) this.drawFireEscape(mg,x,yy,h);
     });
     this.layerMid.add(mg);
+    */
 
     // ---- WIRES (depth 4) ----
     const wires=this.add.graphics().setDepth(4);
