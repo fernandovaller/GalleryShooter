@@ -897,7 +897,7 @@ class GameScene extends Phaser.Scene {
       if(d.y>H){
         // create splash on front wall if front drops
         if(drops===this.dropsFront && this.splashes && this.splashes.length<30){
-          this.splashes.push({x:d.x,y:BASE_H-60,r:1,maxR:4+rng()*4,alpha:0.5});
+          this.splashes.push({x:d.x,y:BASE_H-60,r:1,maxR:4+Math.random()*4,alpha:0.5});
         }
         d.y=-d.length; d.x=Phaser.Math.Between(-100,W);
       }
