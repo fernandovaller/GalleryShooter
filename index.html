@@ -589,18 +589,81 @@ class GameScene extends Phaser.Scene {
     const rng=mulberry32(20240729);
     // ---- SKY fixed (depth 0) ----
     const sky=this.add.graphics().setDepth(0);
-    for(let y=0;y<H;y++){ const t=y/H; const c=Phaser.Display.Color.Interpolate.ColorWithColor(0x0a0e1a,0x1a2238,t);
-      sky.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); sky.fillRect(0,y,W,1); }
-    for(let i=0;i<50;i++){ sky.fillStyle(0xffffff,0.3+rng()*0.4); sky.fillCircle(rng()*W,rng()*H*0.33,1); }
+    const skyStops=[
+      {t:0.00,col:0x070512},
+      {t:0.25,col:0x0a0e1a},
+      {t:0.50,col:0x121a2e},
+      {t:0.65,col:0x1a2238},
+      {t:0.70,col:0x2a2238},
+      {t:0.72,col:0x3a2a30},
+    ];
+    for(let y=0;y<groundY+2;y++){
+      const t=y/(groundY+2);
+      let s0=skyStops[0],s1=skyStops[1];
+      for(let si=0;si<skyStops.length-1;si++){ if(t>=skyStops[si].t&&t<=skyStops[si+1].t){ s0=skyStops[si]; s1=skyStops[si+1]; break; } }
+      const lt=(t-s0.t)/(s1.t-s0.t);
+      const c=Phaser.Display.Color.Interpolate.ColorWithColor(s0.col,s1.col,lt);
+      sky.fillStyle(Phaser.Display.Color.GetColor(c[0],c[1],c[2]),1); sky.fillRect(0,y,W,1);
+    }
+    // stars (denser, varied sizes, twinkle data)
+    this.stars=[];
+    for(let i=0;i<120;i++){
+      const sx=rng()*W, sy=rng()*H*0.45, sr=rng()*1.5+0.5;
+      const sa=0.3+rng()*0.5;
+      sky.fillStyle(0xffffff,sa); sky.fillCircle(sx,sy,sr);
+      this.stars.push({x:sx,y:sy,r:sr,baseAlpha:sa,twPhase:rng()*Math.PI*2,twSpeed:0.5+rng()*1.5});
+    }
+    // distant nebula clouds (translucent blobs)
+    for(let i=0;i<6;i++){
+      const nx=rng()*W, ny=rng()*H*0.4;
+      const nr=60+rng()*100;
+      for(let r=nr;r>0;r-=8){
+        const a=0.04*(r/nr)*0.6;
+        sky.fillStyle(i%2===0?0x3a2a4a:0x2a3a5a,a); sky.fillCircle(nx,ny,r);
+      }
+    }
+    // ---- MOON (depth 0, pulsing glow) ----
+    const moonX=W*0.78, moonY=H*0.18, moonR=42;
+    // outer halo (multi-ring)
+    this.moonGlow=this.add.graphics().setDepth(0);
+    const drawHalo=(alpha)=>{
+      this.moonGlow.clear();
+      for(let r=moonR+60;r>moonR;r-=4){
+        const a=alpha*Math.pow((moonR+60-r)/60,2)*0.25;
+        this.moonGlow.fillStyle(0xc8d0ff,a); this.moonGlow.fillCircle(moonX,moonY,r);
+      }
+    };
+    drawHalo(1);
+    this.tweens.add({targets:this.moonGlow,alpha:{from:0.7,to:1.0},duration:3000,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    // moon body with shading
+    const moonG=this.add.graphics().setDepth(0);
+    moonG.fillStyle(0xd8dce8,1); moonG.fillCircle(moonX,moonY,moonR);
+    // shading gradient (darker bottom-right)
+    moonG.fillStyle(0xb0b8c8,0.3); moonG.fillCircle(moonX+8,moonY+6,moonR-4);
+    moonG.fillStyle(0x9098a8,0.2); moonG.fillCircle(moonX+14,moonY+12,moonR-10);
+    // craters
+    const craters=[[ -15,-8,8],[8,-12,6],[-4,10,7],[16,4,5],[-18,14,4],[2,-4,3],[12,16,5],[-8,-18,4]];
+    craters.forEach(([dx,dy,cr])=>{
+      moonG.fillStyle(0xa0a8b8,0.4); moonG.fillCircle(moonX+dx,moonY+dy,cr);
+      moonG.fillStyle(0x888c9c,0.3); moonG.fillCircle(moonX+dx+1,moonY+dy+1,cr-2);
+    });
+    // ground
     sky.fillStyle(0x11161e,1); sky.fillRect(0,groundY,W,H-groundY);
     sky.fillStyle(0x1a2230,1); sky.fillRect(0,groundY,W,4);
 
     // ---- LAYER BACK distant (depth 1) ----
     this.layerBack=this.add.container(0,0).setDepth(1);
     const bg=this.add.graphics();
-    for(let i=0;i<14;i++){ const x=rng()*W, w=20+rng()*40, h=180+rng()*220, yy=groundY-h;
-      bg.fillStyle(0x070a10,0.3); bg.fillRect(x,yy,w,h);
-      for(let wy=yy+10;wy<yy+h-10;wy+=14){ if(rng()<0.15){ bg.fillStyle(0x202830,0.3); bg.fillRect(x+2,wy,2,3); } } }
+    for(let i=0;i<18;i++){ const x=rng()*W, w=16+rng()*50, h=160+rng()*280, yy=groundY-h;
+      // varied silhouette tops: stepped and pitched
+      bg.fillStyle(0x070a10,0.3);
+      if(rng()<0.3){ bg.fillRect(x,yy+w*0.25,w*0.75,h-yy-30); bg.fillRect(x+w*0.3,yy,w*0.7,30); }
+      else if(rng()<0.5){ bg.fillRect(x,yy,w,h); bg.beginPath(); bg.moveTo(x,yy); bg.lineTo(x+w/2,yy-18); bg.lineTo(x+w,yy); bg.closePath(); bg.fillPath(); }
+      else { bg.fillRect(x,yy,w,h); }
+      for(let wy=yy+10;wy<yy+h-10;wy+=14){ if(rng()<0.15){ bg.fillStyle(0x202830,0.3); bg.fillRect(x+2,wy,2,3); } }
+      // distant antennas on tall back buildings
+      if(h>300 && rng()<0.5){ bg.lineStyle(1,0x151820,0.5); bg.beginPath(); bg.moveTo(x+w/2,yy); bg.lineTo(x+w/2,yy-20); bg.strokePath(); }
+    }
     this.layerBack.add(bg);
 
     // ---- FOG (depth 2) ----
@@ -668,10 +731,25 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(Phaser.Math.Between(8000,20000),()=>this.triggerLightning());
   }
   drawRoofDetails(g,x,yy,w,rng){
+    // antenna dish (50%)
     if(rng()<0.5){ const tx=x+w*0.3; g.fillStyle(0x3A3A3A,1); g.fillRect(tx,yy-24,8,24); g.fillStyle(0x2A2A2A,1); g.fillEllipse(tx+4,yy-24,20,10); }
+    // antenna with crossbars (50%)
     if(rng()<0.5){ const ax=x+w*0.7; g.lineStyle(1,0x2A2A2A,1); g.beginPath(); g.moveTo(ax,yy); g.lineTo(ax,yy-30); g.moveTo(ax-6,yy-12); g.lineTo(ax+6,yy-12); g.moveTo(ax-4,yy-20); g.lineTo(ax+4,yy-20); g.strokePath(); }
+    // AC unit with vent slats (40%)
     if(rng()<0.4){ const cx=x+w*0.5; g.fillStyle(0x2A2A2A,1); g.fillRect(cx,yy-10,14,10); g.lineStyle(1,0x444444,1); g.strokeRect(cx,yy-10,14,10);
       for(let i=0;i<3;i++){ g.beginPath(); g.moveTo(cx+2+i*4,yy-8); g.lineTo(cx+2+i*4,yy-2); g.strokePath(); } }
+    // TV antenna - tripod mast with lattice (35%)
+    if(rng()<0.35){ const tx=x+w*0.5; g.lineStyle(1,0x3A3A3A,1);
+      g.beginPath(); g.moveTo(tx-4,yy); g.lineTo(tx,yy-34); g.moveTo(tx+4,yy); g.lineTo(tx,yy-34); g.strokePath();
+      g.beginPath(); g.moveTo(tx,yy-10); g.lineTo(tx,yy-10); g.moveTo(tx-3,yy-16); g.lineTo(tx+3,yy-16); g.moveTo(tx-2,yy-22); g.lineTo(tx+2,yy-22); g.strokePath();
+      g.fillStyle(0x444444,1); g.fillCircle(tx,yy-34,3); }
+    // water tank (30%) — cylindrical tank on short legs
+    if(rng()<0.30){ const tx=x+4; const tyy=yy-22;
+      g.fillStyle(0x333333,1); g.fillRect(tx,tyy+14,4,8); g.fillRect(tx+w-10,tyy+14,4,8); // legs
+      g.fillStyle(0x4A4038,1); g.fillRect(tx,tyy,w-12,14);
+      g.lineStyle(1,0x2a241e,1); g.strokeRect(tx,tyy,w-12,14);
+      g.fillStyle(0x5A5048,1); g.fillEllipse(tx+(w-12)/2,tyy,w-12,6); // top cap
+      g.fillStyle(0x3A3028,1); g.fillEllipse(tx+(w-12)/2,tyy+14,w-12,4); }
   }
   drawFireEscape(g,x,yy,h){
     g.fillStyle(0x2A2A2A,1); g.lineStyle(1,0x444444,1);
