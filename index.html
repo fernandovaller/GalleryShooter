@@ -761,6 +761,12 @@ class Enemy extends Phaser.GameObjects.Container {
     // berserker buff: instant kill (bypass hp)
     const berzing = scene.stats && scene.stats.berserkUntil && scene.time.now<scene.stats.berserkUntil;
     if(berzing) this.hp=0; else this.hp--;
+    // lifesteal buff: heal player per hit
+    if(scene.stats.lifestealShots>0){
+      scene.stats.lifestealShots--;
+      scene.stats.hp=Math.min(100,scene.stats.hp+5);
+      scene.ui && scene.ui.refresh();
+    }
     Audio.hit();
     scene.spawnBlood(this.x,this.y);
     if(this.hp<=0){ this.die(scene); return true; }
@@ -1497,9 +1503,12 @@ class GameScene extends Phaser.Scene {
   }
   onEnemyKilled(e){
     this.stats.kills++;
-    this.stats.score+=e.def.pts*this.stats.combo;
+    let gained=e.def.pts*this.stats.combo;
     // silver+ streak: kills multiply score (silver jerker active)
-    if(this.stats.berserkUntil && this.time.now<this.stats.berserkUntil) this.stats.score+=e.def.pts*this.stats.combo;
+    if(this.stats.berserkUntil && this.time.now<this.stats.berserkUntil) gained+=e.def.pts*this.stats.combo;
+    // double-points buff: 2x
+    if(this.stats.doubleUntil && this.time.now<this.stats.doubleUntil) gained*=2;
+    this.stats.score+=gained;
     const earned=Math.floor((this.stats.score-this.stats.lastContinueScore)/10000);
     if(earned>0){
       this.stats.continues+=earned;
