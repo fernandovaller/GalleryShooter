@@ -647,9 +647,32 @@ class GameScene extends Phaser.Scene {
       moonG.fillStyle(0xa0a8b8,0.4); moonG.fillCircle(moonX+dx,moonY+dy,cr);
       moonG.fillStyle(0x888c9c,0.3); moonG.fillCircle(moonX+dx+1,moonY+dy+1,cr-2);
     });
-    // ground
-    sky.fillStyle(0x11161e,1); sky.fillRect(0,groundY,W,H-groundY);
+    // ground — gradient darkening downward, edge highlight
+    const groundH = H - groundY;
+    const gC0 = Phaser.Display.Color.ValueToColor(0x11161e);
+    const gC1 = Phaser.Display.Color.ValueToColor(0x070a0e);
+    for(let y=0;y<groundH;y++){
+      const t=y/groundH;
+      const gc=Phaser.Display.Color.Interpolate.ColorWithColor(gC0,gC1,t);
+      sky.fillStyle(Phaser.Display.Color.GetColor(gc[0],gc[1],gc[2]),1);
+      sky.fillRect(0,groundY+y,W,1);
+    }
+    // road cracks / street markings
     sky.fillStyle(0x1a2230,1); sky.fillRect(0,groundY,W,4);
+    for(let i=0;i<8;i++){
+      const x=rng()*W;
+      sky.fillStyle(0x0c0f14,0.6);
+      sky.fillRect(x,groundY+6+rng()*groundH*0.4,2+rng()*4,1+rng()*2);
+    }
+    // reflective puddles (reflect building window colors faintly)
+    for(let i=0;i<5;i++){
+      const px=40+rng()*(W-80), py=groundY+20+rng()*(groundH*0.5);
+      const pw=40+rng()*80, ph=4+rng()*6;
+      sky.fillStyle(0x1a2a3a,0.15); sky.fillEllipse(px,py,pw,ph);
+      sky.fillStyle(0x2a3a4a,0.1); sky.fillEllipse(px,py-1,pw*0.7,ph*0.5);
+      // faint warm reflection line
+      if(rng()<0.5){ sky.fillStyle(0xc8a84b,0.04); sky.fillRect(px-pw*0.3,py,pw*0.6,1); }
+    }
 
     // ---- LAYER BACK distant (depth 1) ----
     this.layerBack=this.add.container(0,0).setDepth(1);
