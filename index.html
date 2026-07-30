@@ -366,7 +366,7 @@ class Enemy extends Phaser.GameObjects.Container {
     super(scene,x,y); scene.add.existing(this);
     this.type=type; this.def=ENEMY_DEFS[type];
     const scale=scene.roundScale||getRoundScale(1);
-    this.hp=Math.ceil(this.def.hp*scale.hpMult); this.maxHp=this.hp;
+    this.hp=(type==='tank'?2:this.def.hp); this.maxHp=this.hp;
     this.visibleTime=Phaser.Math.Between(this.def.vis[0],this.def.vis[1])*scale.visMult;
     this.born=scene.time.now; this.alive=true; this.killed=false; this.scored=false;
     this.slowFactor=1;
