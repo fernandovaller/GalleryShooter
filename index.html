@@ -841,8 +841,8 @@ class PowerUp extends Phaser.GameObjects.Container {
     const auraColor=def.color;
     this.aura=scene.add.graphics().setDepth(19);
     this.add(this.aura);
-    // item icon
-    const bg=scene.add.image(0,0,'item_'+kind).setDepth(20);
+    // item icon (emoji, same as legend)
+    const bg=scene.add.text(0,0,def.icon,{fontSize:'36px'}).setOrigin(0.5).setDepth(20);
     this.add(bg); this.bg=bg;
     this.setSize(48,48); this.setDepth(20);
     this.auraPulse=0;
