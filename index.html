@@ -841,8 +841,8 @@ class PowerUp extends Phaser.GameObjects.Container {
     const auraColor=def.color;
     this.aura=scene.add.graphics().setDepth(19);
     this.add(this.aura);
-    // item icon (emoji, same as legend)
-    const bg=scene.add.text(0,0,def.icon,{fontSize:'36px'}).setOrigin(0.5).setDepth(20);
+    // item icon (emoji, same as legend) — padding prevents clipping on some glyphs
+    const bg=scene.add.text(0,0,def.icon,{fontSize:'36px',padding:{top:4,bottom:4,left:4,right:4}}).setOrigin(0.5).setDepth(20);
     this.add(bg); this.bg=bg;
     this.setSize(48,48); this.setDepth(20);
     this.auraPulse=0;
@@ -1902,26 +1902,85 @@ class GameOverScene extends Phaser.Scene {
   init(data){ this.stats=data.stats; this.win=data.win||false; }
   create(){
     this.add.image(BASE_W/2,BASE_H/2,'bg').setDisplaySize(BASE_W,BASE_H).setAlpha(0.6);
-    this.add.rectangle(BASE_W/2,BASE_H/2,BASE_W,BASE_H,0x000000,0.5);
+    this.add.rectangle(BASE_W/2,BASE_H/2,BASE_W,BASE_H,0x000000,0.55);
     const title=this.win?'MISSÃO CUMPRIDA!':'GAME OVER';
-    const color=this.win?'#7fff7f':'#ff4040';
-    this.add.text(BASE_W/2,150,title,{fontSize:'64px',color,fontStyle:'bold'}).setOrigin(0.5).setShadow(0,0,'#400000',4,true);
-    const acc=this.stats.shotsFired>0?Math.round(this.stats.shotsHit/this.stats.shotsFired*100):0;
-    const lines=[
-      'Pontuação final: '+this.stats.score,
-      'Round alcançado: '+this.stats.round,
-      'Inimigos eliminados: '+this.stats.kills,
-      'Aldeões mortos: '+this.stats.innocentsKilled,
-      'Precisão: '+acc+'%',
-      'Continues restantes: '+this.stats.continues,
-    ];
-    this.add.text(BASE_W/2,300,lines,{fontSize:'24px',color:'#fff',align:'center',lineSpacing:10}).setOrigin(0.5);
+    const titleColor=this.win?'#7fff7f':'#ff4040';
+    this.add.text(BASE_W/2,45,title,{fontSize:'56px',color:titleColor,fontStyle:'bold'}).setOrigin(0.5).setShadow(0,0,'#400000',4,true);
 
-    const btn=this.add.rectangle(BASE_W/2,520,300,64,0x222a33).setStrokeStyle(3,0xffffff).setInteractive({useHandCursor:true});
-    const btxt=this.add.text(BASE_W/2,520,'JOGAR NOVAMENTE',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5);
-    btn.on('pointerover',()=>btn.setFillStyle(0x33404d));
-    btn.on('pointerout',()=>btn.setFillStyle(0x222a33));
-    btn.on('pointerdown',()=>{ this.scene.stop('UI'); this.scene.start('Game'); });
+    const acc=this.stats.shotsFired>0?Math.round(this.stats.shotsHit/this.stats.shotsFired*100):0;
+
+    // ----- persist history (last 3 games, sorted by score desc) -----
+    const now=new Date();
+    const entry={
+      date:now.toISOString(),
+      score:this.stats.score,
+      round:this.stats.round,
+      kills:this.stats.kills,
+      innocentsKilled:this.stats.innocentsKilled,
+      accuracy:acc,
+      continues:this.stats.continues,
+      current:true
+    };
+    let history=JSON.parse(localStorage.getItem('gs_history')||'[]');
+    history.forEach(h=>delete h.current);
+    history.unshift(entry);
+    history.sort((a,b)=>b.score-a.score);
+    history=history.slice(0,3);
+    localStorage.setItem('gs_history',JSON.stringify(history));
+    const currentIdx=history.findIndex(h=>h.current);
+
+    // ----- history cards -----
+    const cardW=260, cardH=115, gap=18;
+    const totalW=history.length*cardW+(history.length-1)*gap;
+    const startX=BASE_W/2-totalW/2+cardW/2;
+    const cy=190;
+    this.add.text(BASE_W/2,105,'ÚLTIMOS JOGOS',{fontSize:'16px',color:'#8899aa'}).setOrigin(0.5);
+
+    history.forEach((h,i)=>{
+      const cx=startX+i*(cardW+gap);
+      const isCurrent=i===currentIdx;
+      const container=this.add.container(cx,cy).setDepth(10);
+
+      const bgColor=isCurrent?0x2a2530:0x1a2230;
+      const borderColor=isCurrent?0xffcc44:0x2a3a4a;
+      const bg=this.add.rectangle(0,0,cardW,cardH,bgColor,0.95).setStrokeStyle(isCurrent?3:2,borderColor);
+      container.add(bg);
+
+      const d=new Date(h.date);
+      const dd=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      container.add(this.add.text(0,-48,dd,{fontSize:'11px',color:'#667788'}).setOrigin(0.5));
+
+      container.add(this.add.text(0,-24,h.score.toLocaleString(),{fontSize:'28px',color:isCurrent?'#ffdd40':'#ffffff',fontStyle:'bold'}).setOrigin(0.5));
+
+      const det=`Round ${h.round}  •  ${h.kills} kills  •  ${h.accuracy}%`;
+      container.add(this.add.text(0,6,det,{fontSize:'13px',color:'#aabbcc'}).setOrigin(0.5));
+
+      const botLines=[];
+      if(h.innocentsKilled>0) botLines.push(`Aldeões: ${h.innocentsKilled}`);
+      botLines.push(`Continues: ${h.continues}`);
+      const botText=botLines.join('  •  ');
+      const botColor=h.innocentsKilled>0?'#ff6060':'#8899aa';
+      container.add(this.add.text(0,30,botText,{fontSize:'12px',color:botColor}).setOrigin(0.5));
+
+      if(isCurrent){
+        container.add(this.add.text(0,52,'JOGO ATUAL',{fontSize:'10px',color:'#ffcc44',fontStyle:'bold'}).setOrigin(0.5));
+      }
+    });
+
+    // ----- buttons -----
+    const btnY=500, btnW=220, btnH=54, gapBtn=30;
+    const btnRestart=this.add.rectangle(BASE_W/2-gapBtn/2-btnW/2,btnY,btnW,btnH,0x222a33).setStrokeStyle(2,0xffffff).setInteractive({useHandCursor:true}).setDepth(10);
+    this.add.text(btnRestart.x,btnY,'JOGAR NOVAMENTE',{fontSize:'20px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(11);
+
+    const btnMenu=this.add.rectangle(BASE_W/2+gapBtn/2+btnW/2,btnY,btnW,btnH,0x222a33).setStrokeStyle(2,0xffffff).setInteractive({useHandCursor:true}).setDepth(10);
+    this.add.text(btnMenu.x,btnY,'MENU INICIAL',{fontSize:'20px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(11);
+
+    [btnRestart,btnMenu].forEach(btn=>{
+      btn.on('pointerover',()=>btn.setFillStyle(0x33404d));
+      btn.on('pointerout',()=>btn.setFillStyle(0x222a33));
+    });
+    btnRestart.on('pointerdown',()=>{ this.scene.stop('UI'); this.scene.start('Game'); });
+    btnMenu.on('pointerdown',()=>{ this.scene.stop('UI'); this.scene.start('Menu'); });
   }
 }
 

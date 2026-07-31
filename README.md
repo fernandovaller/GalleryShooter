@@ -79,6 +79,18 @@ Acertos consecutivos sem errar aumentam o multiplicador: ×1 → ×2 (3 hits) �
 - Complete uma rodada para ganhar moedas bônus.
 - Continues também podem ser usados quando HP chega a 0 — o jogo restaure HP/munição e continua.
 
+## 📜 Histórico de Partidas
+
+A tela de **Game Over** exibe os **últimos 3 jogos** salvos no `localStorage`, ordenados do maior para o menor pontuação. Cada card mostra:
+
+- Data e hora da partida (`DD/MM/YYYY HH:mm`)
+- Pontuação final (destacada em dourado para o jogo atual)
+- Round alcançado, kills e precisão
+- Aldeões mortos (em vermelho, se houver)
+- Continues restantes
+
+O jogo atual é destacado com borda dourada e selo **"JOGO ATUAL"**.
+
 ## 🎯 Mira Inteligente & Feedback Visual
 
 - **Crosshair dinâmica** — a mira muda de cor conforme o que está sob ela:  
@@ -115,7 +127,7 @@ GameScene     → loop principal: spawn, tiro, dano, rodadas, itens, cenário
 UIScene       → HUD (HP, munição, score, combo, rodada, escudo, buffs ativos)
 PauseScene    → overlay de pausa
 ShopScene     → loja de upgrades entre rounds
-GameOverScene → tela final / vitória
+GameOverScene → tela final com cards dos últimos 3 jogos (localStorage) + botões Jogar Novamente / Menu Inicial
 ```
 
 ### Constantes de balanceamento (topo do script)
