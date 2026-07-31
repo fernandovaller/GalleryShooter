@@ -205,7 +205,7 @@ class BootScene extends Phaser.Scene {
     this.scene.start('Menu');
   }
   makeMonitorTexture(){
-    const W=240,H=175, g=this.add.graphics();
+    const W=240,H=130, g=this.add.graphics();
     g.fillStyle(0x14141a,1); g.fillRoundedRect(0,0,W,H,5);
     g.fillStyle(0x1a1a22,1); g.fillRoundedRect(2,2,W-4,H-4,4);
     g.fillStyle(0x06060a,1); g.fillRoundedRect(5,5,W-10,H-25,3);
@@ -1847,35 +1847,35 @@ class UIScene extends Phaser.Scene {
     this.buffSlots=[];
 
     // ---- CRT combat monitor (bottom-right) ----
-    const MW=240, MH=175;
+    const MW=240, MH=130;
     this.crt=this.add.container(BASE_W-MW-10,BASE_H-MH-10).setDepth(50);
     this.crt.add(this.add.image(0,0,'crt_monitor').setOrigin(0,0));
     // scanline sweep bar
-    this.crtSweep=this.add.rectangle(8,20,MW-16,26,0x40ff40,0.07).setOrigin(0,0);
+    this.crtSweep=this.add.rectangle(8,16,MW-16,22,0x40ff40,0.07).setOrigin(0,0);
     this.crt.add(this.crtSweep);
-    this.tweens.add({targets:this.crtSweep,y:MH-60,duration:2600,ease:'Linear',repeat:-1,onRepeat:()=>{ this.crtSweep.y=20; }});
+    this.tweens.add({targets:this.crtSweep,y:MH-55,duration:2400,ease:'Linear',repeat:-1,onRepeat:()=>{ this.crtSweep.y=16; }});
     // title
-    this.crtTitle=this.add.text(12,10,'◉ SYS.CRT-7  MK.II',{fontSize:'9px',color:'#7fff7f'}).setOrigin(0,0);
+    this.crtTitle=this.add.text(10,8,'◉ SYS.CRT-7  MK.II',{fontSize:'9px',color:'#7fff7f'}).setOrigin(0,0);
     this.crt.add(this.crtTitle);
     // acc + kills
-    this.crtStats=this.add.text(12,24,'ACC 0%   KILL 0',{fontSize:'10px',color:'#c8ffc8'}).setOrigin(0,0);
+    this.crtStats=this.add.text(10,20,'ACC 0%   KILL 0',{fontSize:'10px',color:'#c8ffc8'}).setOrigin(0,0);
     this.crt.add(this.crtStats);
     // civilians shot counter
-    this.crtCivis=this.add.text(12,39,'CIVIS ✗ 0',{fontSize:'10px',color:'#88ff88'}).setOrigin(0,0);
+    this.crtCivis=this.add.text(10,33,'CIVIS ✗ 0',{fontSize:'10px',color:'#88ff88'}).setOrigin(0,0);
     this.crt.add(this.crtCivis);
     // divider
-    const div=this.add.rectangle(8,53,MW-16,1,0x2a5a3a).setOrigin(0,0);
+    const div=this.add.rectangle(8,43,MW-16,1,0x2a5a3a).setOrigin(0,0);
     this.crt.add(div);
     // kill feed (last 3)
     this.killFeed=[];
     this.killSlots=[];
     for(let i=0;i<3;i++){
-      const t=this.add.text(12,60+i*15,'',{fontSize:'9px',color:'#aaffaa'}).setOrigin(0,0);
+      const t=this.add.text(10,49+i*13,'',{fontSize:'9px',color:'#aaffaa'}).setOrigin(0,0);
       this.crt.add(t);
       this.killSlots.push(t);
     }
     // footer status line
-    this.crtFoot=this.add.text(12,138,'▌ STANDBY',{fontSize:'9px',color:'#40ff40'}).setOrigin(0,0);
+    this.crtFoot=this.add.text(10,94,'▌ STANDBY',{fontSize:'9px',color:'#40ff40'}).setOrigin(0,0);
     this.crt.add(this.crtFoot);
     this._footSig='';
   }
@@ -1912,27 +1912,14 @@ class UIScene extends Phaser.Scene {
     this.updateCrt(now);
   }
   updateCrt(now){
-    const s=this.s;
-    // acc + kills
-    const acc=s.shotsFired>0?Math.round(s.shotsHit/s.shotsFired*100):0;
-    this.crtStats.setText('ACC '+acc+'%   KILL '+s.kills);
-    // civilians
-    const civ=s.innocentsKilled;
-    this.crtCivis.setText('CIVIS ✗ '+civ+' / 5');
-    if(civ>=4){
-      const blink=(Math.sin(now/90)+1)/2;
-      this.crtCivis.setColor(blink>0.5?'#ff3030':'#ff8080');
-      this.crtTitle.setText('◉ SYS.CRT-7  MK.II  —  ALERTA!');
-    } else {
-      this.crtCivis.setColor(civ>0?'#ff8080':'#88ff88');
-      this.crtTitle.setText('◉ SYS.CRT-7  MK.II');
-    }
+    this.updateCrtStats();
     // kill feed expiry
     while(this.killFeed.length && now>this.killFeed[0].until){
       this.killFeed.shift();
       this.killSlots.forEach((t,i)=>t.setText(this.killFeed[i]?this.killFeed[i].txt:''));
     }
     // footer status
+    const s=this.s;
     let foot='▌ STANDBY';
     if(s.reloading) foot='▌ RECARREGANDO...';
     else if(s.combo>1) foot='▌ COMBO x'+s.combo;
@@ -1940,6 +1927,21 @@ class UIScene extends Phaser.Scene {
     if(foot!==this._footSig){ this._footSig=foot; this.crtFoot.setText(foot); }
     // blinking cursor
     this.crtFoot.setAlpha((Math.sin(now/250)+1)/2*0.6+0.4);
+  }
+  updateCrtStats(){
+    if(!this.crtStats) return;
+    const s=this.s;
+    const acc=s.shotsFired>0?Math.round(s.shotsHit/s.shotsFired*100):0;
+    this.crtStats.setText('ACC '+acc+'%   KILL '+s.kills);
+    const civ=s.innocentsKilled;
+    this.crtCivis.setText('CIVIS ✗ '+civ+' / 5');
+    if(civ>=4){
+      this.crtCivis.setColor('#ff3030');
+      this.crtTitle.setText('◉ SYS.CRT-7  MK.II  —  ALERTA!');
+    } else {
+      this.crtCivis.setColor(civ>0?'#ff8080':'#88ff88');
+      this.crtTitle.setText('◉ SYS.CRT-7  MK.II');
+    }
   }
   pushKill(type,pts,innocent){
     const def=ENEMY_DEFS[type];
@@ -1969,6 +1971,7 @@ class UIScene extends Phaser.Scene {
     this.roundTxt.setText('ROUND '+s.round);
     this.continueTxt.setText('x'+s.continues);
     this.coinTxt.setText('🪙 '+s.coins);
+    this.updateCrtStats();
   }
 }
 
