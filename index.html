@@ -1969,7 +1969,7 @@ class ShopScene extends Phaser.Scene {
       const card=this.add.container(cx,cy).setDepth(151);
       const bg=this.add.rectangle(0,0,cardW,cardH,affordable?0x1a2840:0x2a1a1a,0.95).setStrokeStyle(2,affordable?0x40c0ff:0x664444);
       card.add(bg);
-      card.add(this.add.text(0,-95,u.icon,{fontSize:'36px'}).setOrigin(0.5));
+      card.add(this.add.text(0,-95,u.icon,{fontSize:'36px',padding:{top:6,bottom:6,left:6,right:6}}).setOrigin(0.5));
       card.add(this.add.text(0,-50,u.name,{fontSize:'16px',color:'#fff',fontStyle:'bold',align:'center',wordWrap:{width:cardW-20}}).setOrigin(0.5));
       card.add(this.add.text(0,0,u.desc,{fontSize:'12px',color:'#aabbcc',align:'center',wordWrap:{width:cardW-20}}).setOrigin(0.5));
       card.add(this.add.text(0,40,'Nível: '+level+'/'+u.max,{fontSize:'13px',color:'#8899aa'}).setOrigin(0.5));
