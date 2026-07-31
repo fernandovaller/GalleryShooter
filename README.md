@@ -2,6 +2,8 @@
 
 Jogo de tiro ao alvo (shooting gallery) em **arquivo único** — Phaser 3 + Web Audio. Sem build, sem dependências locais. Abre o `index.html` no navegador e joga.
 
+![GALLERY SHOOTER](screenshot.png)
+
 ## ▶️ Como rodar
 
 ```bash
