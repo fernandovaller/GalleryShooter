@@ -1822,8 +1822,8 @@ class UIScene extends Phaser.Scene {
 
     // round
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
-    // continues
-    this.continueTxt=this.add.text(BASE_W/2,52,'💀 x3',{fontSize:'18px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0.5,0);
+    // continues — next to HP bar, same line
+    this.continueTxt=this.add.text(280,40,'x3',{fontSize:'16px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0,0.5);
     // active buffs panel (bottom-left, above ammo)
     this.buffPanel=this.add.container(20,BASE_H-90).setDepth(50);
     this.buffSlots=[];
@@ -1871,7 +1871,7 @@ class UIScene extends Phaser.Scene {
     this.ammoTxt.setText('🔫 '+s.ammo+' / '+s.clipSize);
     this.reloadTxt.setVisible(s.reloading);
     this.roundTxt.setText('ROUND '+s.round);
-    this.continueTxt.setText('💀 x'+s.continues);
+    this.continueTxt.setText('x'+s.continues);
     this.coinTxt.setText('🪙 '+s.coins);
   }
 }
