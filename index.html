@@ -1595,10 +1595,12 @@ class GameScene extends Phaser.Scene {
     this.ui.refresh();
   }
   showItemBanner(def){
+    if(this._banner){ this._banner.forEach(t=>{ if(t&&t.scene) t.destroy(); }); this._banner=null; }
     const color=def.tier==='epic'?'#ffcc44':def.tier==='rare'?'#40c0ff':'#ffffff';
     const b=this.add.text(BASE_W/2,BASE_H*0.82,def.icon+' '+def.name,{fontSize:'32px',color,fontStyle:'bold'}).setOrigin(0.5).setDepth(95);
     const sub=this.add.text(BASE_W/2,BASE_H*0.82+38,def.desc,{fontSize:'18px',color:'#aabbcc'}).setOrigin(0.5).setDepth(95);
-    this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1500,onComplete:()=>{ b.destroy(); sub.destroy(); }});
+    this._banner=[b,sub];
+    this.tweens.add({targets:[b,sub],alpha:0,duration:400,delay:1500,onComplete:()=>{ b.destroy(); sub.destroy(); this._banner=null; }});
   }
   applySlow(on){
     this.enemies.forEach(e=>{ e.slowFactor=on?0.5:1; });
