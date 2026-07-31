@@ -882,7 +882,7 @@ class GameScene extends Phaser.Scene {
     this.stats={ hp:100, maxHp:100, ammo:CLIP_SIZE, clipSize:CLIP_SIZE, reloading:false, score:0, coins:0, combo:1, comboCount:0,
       round:1, kills:0, innocentsKilled:0, shotsFired:0, shotsHit:0,
       shield:0, slowUntil:0, berserkUntil:0, freezeUntil:0,
-      lifestealShots:0, radarUntil:0, doubleUntil:0, continues:3, lastContinueScore:0,
+      lifestealShots:0, radarUntil:0, doubleUntil:0, continues:1, lastContinueScore:0,
       upgrades:{}, startShield:0, lifestealAdd:0 };
     this.enemies=[]; this.items=[]; this.paused=false; this.over=false;
     this.roundScale=getRoundScale(1);
@@ -1823,7 +1823,7 @@ class UIScene extends Phaser.Scene {
     // round
     this.roundTxt=this.add.text(BASE_W/2,24,'ROUND 1',{fontSize:'24px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5,0);
     // continues — next to HP bar, same line
-    this.continueTxt=this.add.text(280,40,'x3',{fontSize:'16px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0,0.5);
+    this.continueTxt=this.add.text(280,40,'x1',{fontSize:'16px',color:'#ff4040',fontStyle:'bold'}).setOrigin(0,0.5);
     // active buffs panel (bottom-left, above ammo)
     this.buffPanel=this.add.container(20,BASE_H-90).setDepth(50);
     this.buffSlots=[];

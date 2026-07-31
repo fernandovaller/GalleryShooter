@@ -76,7 +76,7 @@ Acertos consecutivos sem errar aumentam o multiplicador: ×1 → ×2 (3 hits) �
 
 ### Continues & Moedas
 
-- A cada **10.000 pontos** ganha-se **1 continue** automaticamente.
+- O jogo inicia com **1 continue**. A cada **10.000 pontos** ganha-se **1 continue** adicional automaticamente.
 - Inimigos dropam **moedas** ao morrer (base + bônus por tipo forte).
 - Complete uma rodada para ganhar moedas bônus.
 - Continues também podem ser usados quando HP chega a 0 — o jogo restaure HP/munição e continua.
