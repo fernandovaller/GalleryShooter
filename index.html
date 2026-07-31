@@ -1824,7 +1824,7 @@ class UIScene extends Phaser.Scene {
     this.coinTxt=this.add.text(BASE_W-20,80,'🪙 0',{fontSize:'18px',color:'#ffcc44',padding:{top:2,bottom:2}}).setOrigin(1,0);
 
     // ammo
-    this.ammoTxt=this.add.text(20,BASE_H-30,'🔫 12 / 12',{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
+    this.ammoTxt=this.add.text(20,BASE_H-30,'🔫 '+CLIP_SIZE+' / '+CLIP_SIZE,{fontSize:'20px',color:'#fff'}).setOrigin(0,1);
     this.reloadTxt=this.add.text(20,BASE_H-55,'RECARREGANDO...',{fontSize:'18px',color:'#ff8030'}).setOrigin(0,1).setVisible(false);
 
     // round
