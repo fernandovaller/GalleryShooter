@@ -2032,7 +2032,7 @@ class GameOverScene extends Phaser.Scene {
 
     const acc=this.stats.shotsFired>0?Math.round(this.stats.shotsHit/this.stats.shotsFired*100):0;
 
-    // ----- persist history (last 3 games, sorted by score desc) -----
+    // ----- persist history (last 6 games, sorted by date desc) -----
     const now=new Date();
     const entry={
       date:now.toISOString(),
@@ -2047,20 +2047,25 @@ class GameOverScene extends Phaser.Scene {
     let history=JSON.parse(localStorage.getItem('gs_history')||'[]');
     history.forEach(h=>delete h.current);
     history.unshift(entry);
-    history.sort((a,b)=>b.score-a.score);
-    history=history.slice(0,3);
+    history.sort((a,b)=>new Date(b.date)-new Date(a.date));
+    history=history.slice(0,6);
     localStorage.setItem('gs_history',JSON.stringify(history));
     const currentIdx=history.findIndex(h=>h.current);
 
-    // ----- history cards -----
-    const cardW=260, cardH=115, gap=18;
-    const totalW=history.length*cardW+(history.length-1)*gap;
+    // ----- history cards (2 rows × 3 cols) -----
+    const cardW=230, cardH=100, gap=14;
+    const cardsPerRow=3;
+    const totalW=cardsPerRow*cardW+(cardsPerRow-1)*gap;
     const startX=BASE_W/2-totalW/2+cardW/2;
-    const cy=190;
-    this.add.text(BASE_W/2,105,'ÚLTIMOS JOGOS',{fontSize:'16px',color:'#8899aa'}).setOrigin(0.5);
+    const rowSpacing=cardH+gap+4;
+    const cy0=185;
+    this.add.text(BASE_W/2,110,'ÚLTIMOS JOGOS',{fontSize:'16px',color:'#8899aa', marginBottom:10 }).setOrigin(0.5);
 
     history.forEach((h,i)=>{
-      const cx=startX+i*(cardW+gap);
+      const col=i%cardsPerRow;
+      const row=Math.floor(i/cardsPerRow);
+      const cx=startX+col*(cardW+gap);
+      const cy=cy0+row*rowSpacing;
       const isCurrent=i===currentIdx;
       const container=this.add.container(cx,cy).setDepth(10);
 
@@ -2071,27 +2076,27 @@ class GameOverScene extends Phaser.Scene {
 
       const d=new Date(h.date);
       const dd=`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-      container.add(this.add.text(0,-48,dd,{fontSize:'11px',color:'#667788'}).setOrigin(0.5));
+      container.add(this.add.text(0,-40,dd,{fontSize:'10px',color:'#667788'}).setOrigin(0.5));
 
-      container.add(this.add.text(0,-24,h.score.toLocaleString(),{fontSize:'28px',color:isCurrent?'#ffdd40':'#ffffff',fontStyle:'bold'}).setOrigin(0.5));
+      container.add(this.add.text(0,-18,h.score.toLocaleString(),{fontSize:'24px',color:isCurrent?'#ffdd40':'#ffffff',fontStyle:'bold'}).setOrigin(0.5));
 
       const det=`Round ${h.round}  •  ${h.kills} kills  •  ${h.accuracy}%`;
-      container.add(this.add.text(0,6,det,{fontSize:'13px',color:'#aabbcc'}).setOrigin(0.5));
+      container.add(this.add.text(0,5,det,{fontSize:'12px',color:'#aabbcc'}).setOrigin(0.5));
 
       const botLines=[];
       if(h.innocentsKilled>0) botLines.push(`Aldeões: ${h.innocentsKilled}`);
       botLines.push(`Continues: ${h.continues}`);
       const botText=botLines.join('  •  ');
       const botColor=h.innocentsKilled>0?'#ff6060':'#8899aa';
-      container.add(this.add.text(0,30,botText,{fontSize:'12px',color:botColor}).setOrigin(0.5));
+      container.add(this.add.text(0,24,botText,{fontSize:'11px',color:botColor}).setOrigin(0.5));
 
       if(isCurrent){
-        container.add(this.add.text(0,52,'JOGO ATUAL',{fontSize:'10px',color:'#ffcc44',fontStyle:'bold'}).setOrigin(0.5));
+        container.add(this.add.text(0,42,'JOGO ATUAL',{fontSize:'10px',color:'#ffcc44',fontStyle:'bold'}).setOrigin(0.5));
       }
     });
 
     // ----- buttons -----
-    const btnY=500, btnW=220, btnH=54, gapBtn=30;
+    const btnY=470, btnW=220, btnH=54, gapBtn=30;
     const btnRestart=this.add.rectangle(BASE_W/2-gapBtn/2-btnW/2,btnY,btnW,btnH,0x222a33).setStrokeStyle(2,0xffffff).setInteractive({useHandCursor:true}).setDepth(10);
     this.add.text(btnRestart.x,btnY,'JOGAR NOVAMENTE',{fontSize:'20px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(11);
 
