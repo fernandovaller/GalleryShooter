@@ -48,6 +48,8 @@ Sobreviva o máximo possível em um modo **endless** de rodadas infinitas (`MAX_
 - **Aldeão** — inocente. Não atira, mas aparece com as mãos levantadas. Abater zera combo, -50 pts, -15 HP.
 
 **Escala de dificuldade por rodada:**
+- Quantidade de inimigos: **13 na rodada 1**; a partir da rodada 2, `10 + (rodada - 1) × 3`.
+- É necessário matar pelo menos **1 inimigo por rodada** para avançar — se todos escaparem, é game over.
 - Pesos de spawn mudam conforme a rodada (Mortos-Vivos dominam no início; Espectros e Brutamontes surgem mais tarde).
 - HP dos inimigos aumenta até 1.6× nas primeiras 20 rodadas.
 - Visibilidade encurta levemente e o Espectro pisca mais rápido.

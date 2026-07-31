@@ -910,7 +910,7 @@ class GameScene extends Phaser.Scene {
     this.ui=this.scene.get('UI');
 
     // round control
-    this.roundSpawnTotal=10; this.roundSpawned=0; this.roundEscaped=0; this.roundActive=true;
+    this.roundSpawnTotal=13; this.roundSpawned=0; this.roundEscaped=0; this.roundActive=true; this.roundKills=0;
     this.spawnTimer=0; this.spawnInterval=1100; this.maxConcurrent=2;
     this.itemTimer=Phaser.Math.Between(12000,22000);
     this.roundInnocentsSpawned=0;
@@ -922,8 +922,9 @@ class GameScene extends Phaser.Scene {
     const b=this.add.text(BASE_W/2,BASE_H/2-100,'ROUND '+this.stats.round,{fontSize:'64px',color:'#fff',fontStyle:'bold'}).setOrigin(0.5).setDepth(95).setAlpha(0);
     this.tweens.add({targets:b,alpha:1,duration:400,hold:900,yoyo:true,onComplete:()=>b.destroy()});
     this.roundScale=getRoundScale(this.stats.round);
-    this.roundSpawnTotal=10+(this.stats.round-1)*3;
+    this.roundSpawnTotal=this.stats.round===1?13:10+(this.stats.round-1)*3;
     this.roundSpawned=0; this.roundEscaped=0;
+    this.roundKills=0;
     this.spawnInterval=this.roundScale.spawnInterval;
     this.maxConcurrent=this.roundScale.maxConcurrent;
     this.roundInnocentsSpawned=0;
@@ -1516,6 +1517,7 @@ class GameScene extends Phaser.Scene {
   }
   onEnemyKilled(e){
     this.stats.kills++;
+    this.roundKills++;
     let gained=e.def.pts*this.stats.combo;
     // silver+ streak: kills multiply score (silver jerker active)
     if(this.stats.berserkUntil && this.time.now<this.stats.berserkUntil) gained+=e.def.pts*this.stats.combo;
@@ -1700,7 +1702,11 @@ class GameScene extends Phaser.Scene {
 
     // round end check
     if(this.roundActive && this.roundSpawned>=this.roundSpawnTotal && this.enemies.length===0){
-      this.nextRound();
+      if(this.roundKills>0){
+        this.nextRound();
+      } else {
+        this.gameOver();
+      }
     }
 
     // crosshair color
@@ -1754,8 +1760,9 @@ class GameScene extends Phaser.Scene {
   afterShop(){
     // called by ShopScene on continue
     this.roundScale=getRoundScale(this.stats.round);
-    this.roundSpawnTotal=10+(this.stats.round-1)*3;
+    this.roundSpawnTotal=this.stats.round===1?13:10+(this.stats.round-1)*3;
     this.roundSpawned=0; this.roundEscaped=0;
+    this.roundKills=0;
     // apply per-round start effects
     this.stats.shield=this.stats.startShield;
     this.roundBanner();
