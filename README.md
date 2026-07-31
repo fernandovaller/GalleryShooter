@@ -36,9 +36,9 @@ Sobreviva o máximo possível em um modo **endless** de rodadas infinitas (`MAX_
 |------|----|--------------|------|--------|-------|
 | Morto-Vivo | 1 | 3000–5000ms | 10 | 100 | Z |
 | Cuspidor | 1 | 3000–4000ms | 25 | 250 | ! |
-| Brutamontes | 2 | 4000–5000ms | 15 | 400 | B |
-| Bombardeiro | 1 | 3000–4000ms | 40 | 300 | >> |
-| Espectro | 1 | 5500–7500ms | 20 | 500 | ~ |
+| Brutamontes | 2 | 4000–5000ms | 30 | 400 | B |
+| Bombardeiro | 1 | 3000–4000ms | 50 | 300 | >> |
+| Espectro | 1 | 5500–7500ms | 40 | 500 | ~ |
 | **Aldeão** | 1 | 3000–4000ms | 0 | 0 | CIV |
 
 **Comportamentos especiais:**
