@@ -19,14 +19,14 @@ Requer conexão com internet apenas para carregar o Phaser 3 via CDN:
 |------|---------------|
 | Mirar | Mouse (move) |
 | Atirar | Botão esquerdo |
-| Recarregar | `R` |
+| Recarregar | `R` (auto-recarrega ao tentar atirar sem munição) |
 | Pausar / retomar | `ESC` ou `P` |
 
 ## 🕹️ Objetivo
 
 Sobreviva o máximo possível em um modo **endless** de rodadas infinitas (`MAX_ROUNDS = 999`). Cada rodada cresce em dificuldade: mais inimigos, spawn mais rápido, HP maior e novos tipos de monstros aparecem. Alcance a maior pontuação possível — combo multiplica os pontos, e a cada **10.000 pontos** você ganha um **continue**.
 
-> ⚠️ **Cuidado com os Aldeões** — atirar em civis zera o combo, penaliza score/HP e, após 5 abatidos, é game over.
+> ⚠️ **Cuidado com os Aldeões** — atirar em civis zera o combo, penaliza score/HP e, após 5 abatidos, é game over. A quantidade de inocentes por rodada cresce com a dificuldade (`round/2 + 1`).
 
 ### Inimigos (`ENEMY_DEFS`)
 
@@ -45,9 +45,15 @@ Sobreviva o máximo possível em um modo **endless** de rodadas infinitas (`MAX_
 - **Espectro** — pisca entre material e etéreo (só pode ser atingido quando opaco).
 - **Aldeão** — inocente. Não atira, mas aparece com as mãos levantadas. Abater zera combo, -50 pts, -15 HP.
 
+**Escala de dificuldade por rodada:**
+- Pesos de spawn mudam conforme a rodada (Mortos-Vivos dominam no início; Espectros e Brutamontes surgem mais tarde).
+- HP dos inimigos aumenta até 1.6× nas primeiras 20 rodadas.
+- Visibilidade encurta levemente e o Espectro pisca mais rápido.
+- Velocidade do Bombardeiro cresce com as rodadas.
+
 ### Itens (`ITEM_DEFS`) — coletados ao clicar, com tempo de desaparecimento por tier
 
-Itens possuem **raridade** (Common / Rare / Epic), indicada por aura colorida. Itens mais raros duram mais tempo na tela antes de sumir.
+Itens possuem **raridade** (Common / Rare / Epic), indicada por aura colorida. Itens mais raros duram mais tempo na tela antes de sumir. A chance de um inimigo dropar item ao morrer aumenta com a rodada (de ~12% até 25%).
 
 | Item | Efeito | Tier | Ícone |
 |------|--------|------|-------|
@@ -72,6 +78,18 @@ Acertos consecutivos sem errar aumentam o multiplicador: ×1 → ×2 (3 hits) �
 - Inimigos dropam **moedas** ao morrer (base + bônus por tipo forte).
 - Complete uma rodada para ganhar moedas bônus.
 - Continues também podem ser usados quando HP chega a 0 — o jogo restaure HP/munição e continua.
+
+## 🎯 Mira Inteligente & Feedback Visual
+
+- **Crosshair dinâmica** — a mira muda de cor conforme o que está sob ela:  
+  `🔴 vermelho` = inimigo · `🟢 verde` = aldeão · `🟡 cor do tier` = item · `⚪ branco` = vazio
+- **Flash de tiro** — tela clareia brevemente a cada disparo.
+- **Vignette de dano** — borda vermelha pisca ao levar dano ou abater um inocente.
+- **Shake de câmera** — tela treme ao levar dano pesado, usar continue ou detonar uma granada.
+
+## 🗺️ Área de Spawn Progressiva
+
+Nos primeiros 10 rounds, a área onde inimigos e itens aparecem **expande** gradualmente, tornando os alvos mais imprevisíveis e exigindo maior movimentação da mira.
 
 ## 🛒 Loja entre Rodadas
 
